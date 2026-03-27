@@ -8,7 +8,8 @@
     "build": "tsx script/build.ts",
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
-    "db:push": "drizzle-kit push"
+    "db:push": "drizzle-kit push",
+    "sync": "npx vite build && git add . && git commit -m \"Automated Sync: SolarIQ Platform Update\" && git push origin main"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
