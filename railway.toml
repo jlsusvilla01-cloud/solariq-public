@@ -1,0 +1,8 @@
+[build]
+buildCommand = "npm install && npm run build"
+
+[deploy]
+startCommand = "NODE_ENV=production node dist/index.cjs"
+restartPolicyType = "on_failure"
+healthcheckPath = "/"
+healthcheckTimeout = 30

@@ -1,0 +1,10 @@
+node_modules
+dist
+.env
+*.db
+*.db-journal
+.vercel
+.cache
+tsc.txt
+tsc_errors.txt
+.DS_Store
