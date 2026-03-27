@@ -1,8 +1,8 @@
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
-import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications } from "@shared/schema";
-import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications, solarReadings } from "@shared/schema";
+import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading } from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
 
 const client = createClient({ 
   url: process.env.DATABASE_URL || "file:solariq_v3.db",
@@ -173,6 +173,7 @@ async function initDb() {
   await client.execute(`CREATE TABLE IF NOT EXISTS stock_transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, inventory_id INTEGER NOT NULL, type TEXT NOT NULL, quantity REAL NOT NULL, reference TEXT, created_at TEXT NOT NULL)`);
   await client.execute(`CREATE TABLE IF NOT EXISTS schedules (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL, resource_id INTEGER)`);
   await client.execute(`CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, message TEXT NOT NULL, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS solar_readings (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, wattage_kw REAL NOT NULL, energy_today_kwh REAL NOT NULL, energy_total_kwh REAL NOT NULL, timestamp TEXT NOT NULL)`);
 
   // Migrations for existing tables
   try { await client.execute("ALTER TABLE projects ADD COLUMN roi_projected_years INTEGER DEFAULT 5"); } catch(e){}
@@ -188,6 +189,9 @@ async function initDb() {
   try { await client.execute("ALTER TABLE proposals ADD COLUMN is_published INTEGER DEFAULT 0"); } catch(e){}
   try { await client.execute("ALTER TABLE proposals ADD COLUMN total_value REAL DEFAULT 0"); } catch(e){}
   try { await client.execute("ALTER TABLE proposals ADD COLUMN snapshot_json TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN inverter_model TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN inverter_serial TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN monitoring_status TEXT DEFAULT 'offline'"); } catch(e){}
 
   await seedAll();
 }
@@ -540,6 +544,45 @@ export class Storage {
   async markNotificationRead(id: number) {
     const res = await db.update(notifications).set({ isRead: 1 }).where(eq(notifications.id, id)).returning().all();
     return res[0];
+  }
+
+  // Solar Readings (IoT)
+  async getReadingsByProject(pid: number, limit = 100) { 
+    return await db.select().from(solarReadings)
+      .where(eq(solarReadings.projectId, pid))
+      .orderBy(desc(solarReadings.timestamp))
+      .limit(limit)
+      .all(); 
+  }
+  async createReading(data: InsertReading) { 
+    const res = await db.insert(solarReadings).values(data).returning().all();
+    return res[0];
+  }
+  async generateMockReadings(pid: number) {
+    const readings: InsertReading[] = [];
+    const now = new Date();
+    // Generate 24 hours of data
+    for (let i = 0; i < 24; i++) {
+        const time = new Date(now.getTime() - (23 - i) * 60 * 60 * 1000);
+        const hour = time.getHours();
+        // Solar curve: peak at noon
+        let wattage = 0;
+        if (hour >= 6 && hour <= 18) {
+            wattage = Math.sin((hour - 6) * Math.PI / 12) * 5; // max 5kW
+            wattage += (Math.random() - 0.5); // Add some noise
+            if (wattage < 0) wattage = 0;
+        }
+        readings.push({
+            projectId: pid,
+            wattageKw: Number(wattage.toFixed(2)),
+            energyTodayKwh: Number((wattage * 0.8).toFixed(2)), // mock
+            energyTotalKwh: 1250 + i * 2,
+            timestamp: time.toISOString()
+        });
+    }
+    for (const r of readings) {
+        await this.createReading(r);
+    }
   }
 }
 

@@ -87,7 +87,7 @@ function ProjectsTab({ adminName }: { adminName: string }) {
   const { toast } = useToast();
   const [adding, setAdding] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [activeDetailTab, setActiveDetailTab] = useState<"milestones" | "photos" | "updates" | "qr" | "notif" | "signatures" | "finance">("milestones");
+  const [activeDetailTab, setActiveDetailTab] = useState<"milestones" | "photos" | "updates" | "qr" | "monitoring" | "notif" | "signatures" | "finance">("milestones");
   const [newUpdate, setNewUpdate] = useState("");
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoType, setPhotoType] = useState<"before" | "progress" | "after">("progress");
@@ -156,6 +156,7 @@ function ProjectsTab({ adminName }: { adminName: string }) {
     { id: "photos", label: "Photos", icon: Camera },
     { id: "finance", label: "Finance / ROI", icon: DollarSign },
     { id: "qr", label: "QR Code", icon: QrCode },
+    { id: "monitoring", label: "Monitoring", icon: Zap },
     { id: "notif", label: "Notifications", icon: Bell },
     { id: "signatures", label: "Signatures", icon: PenLine },
   ];
@@ -404,6 +405,75 @@ function ProjectsTab({ adminName }: { adminName: string }) {
                   >
                     Save Notification Settings
                   </Button>
+                </div>
+              )}
+
+              {/* Monitoring Config */}
+              {activeDetailTab === "monitoring" && (
+                <div className="space-y-4">
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
+                    <h3 className="text-xs font-black text-[#fbbf24] uppercase tracking-widest">Inverter Configuration</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] text-white/40 uppercase font-bold">Inverter Model</label>
+                        <Input 
+                          id="inv-model" 
+                          defaultValue={sel.inverterModel || ""} 
+                          placeholder="e.g. Huawei SUN2000" 
+                          className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs" 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/40 uppercase font-bold">Serial Number</label>
+                        <Input 
+                          id="inv-serial" 
+                          defaultValue={sel.inverterSerial || ""} 
+                          placeholder="SN: 123456789" 
+                          className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs" 
+                        />
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={async () => {
+                        const model = (document.getElementById("inv-model") as HTMLInputElement).value;
+                        const serial = (document.getElementById("inv-serial") as HTMLInputElement).value;
+                        await apiFetch(`/api/admin/projects/${sel.id}/monitoring-config`, { 
+                          method: "POST", 
+                          body: JSON.stringify({ inverterModel: model, inverterSerial: serial, monitoringStatus: "online" }) 
+                        });
+                        toast({ title: "Inverter configuration saved" });
+                        refetch();
+                      }}
+                      className="w-full bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold text-xs h-8"
+                    >
+                      Save Configuration
+                    </Button>
+                  </div>
+
+                  <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10 space-y-3">
+                    <h3 className="text-xs font-black text-blue-400 uppercase tracking-widest">Demo Data Generator</h3>
+                    <p className="text-[10px] text-white/30 italic">Generate 24 hours of simulated production data to test the client's live dashboard.</p>
+                    <Button 
+                      variant="outline"
+                      onClick={async () => {
+                        await apiFetch(`/api/admin/projects/${sel.id}/generate-readings`, { method: "POST" });
+                        toast({ title: "24h of mock data generated!" });
+                      }}
+                      className="w-full border-blue-500/30 text-blue-400 hover:bg-blue-500/10 text-xs h-8"
+                    >
+                      <RefreshCw size={12} className="mr-2" /> Generate 24h Mock Data
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${sel.monitoringStatus === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-red-500'} `} />
+                      <span className="text-[10px] font-bold text-white/50 uppercase">Current Status:</span>
+                    </div>
+                    <Badge variant="outline" className={`${sel.monitoringStatus === 'online' ? 'border-green-500/30 text-green-400 bg-green-500/5' : 'border-red-500/30 text-red-400 bg-red-500/5'} text-[9px] uppercase px-2 py-0`}>
+                      {sel.monitoringStatus || 'offline'}
+                    </Badge>
+                  </div>
                 </div>
               )}
 
@@ -931,8 +1001,8 @@ function DashboardTab({ projects }: { projects: Project[] }) {
   const metrics = [
     { label: "Pipeline Value", val: "₱4.2M", icon: Target, trend: "+12%" },
     { label: "Active Leads", val: leads.length.toString(), icon: Users, trend: "+4" },
-    { label: "In Stock", val: inventory.reduce((acc, i) => acc + i.quantity, 0).toLocaleString(), icon: ShoppingCart, trend: "Stable" },
-    { label: "Portfolio Yield", val: "1.4 GWh", icon: Zap, trend: "+0.2 GWh" },
+    { label: "Inventory Cost", val: "₱" + (inventory.reduce((acc, i) => acc + (i.quantity * 450), 0) / 1000).toFixed(0) + "K", icon: ShoppingCart, trend: "Stable" },
+    { label: "Systems Online", val: projects.filter(p => p.monitoringStatus === 'online').length.toString(), icon: Zap, trend: "Active" },
   ];
 
   return (
@@ -998,6 +1068,31 @@ function DashboardTab({ projects }: { projects: Project[] }) {
             <Button size="sm" className="w-full bg-[#fbbf24] text-black font-black text-[10px] tracking-widest uppercase">
               APPROVE PAYOUTS
             </Button>
+          </Card>
+
+          <Card className="bg-[hsl(220_24%_9%)] border-white/5 p-6 border-l-4 border-green-500/50">
+            <h3 className="text-xs font-black text-white uppercase tracking-widest mb-4 flex items-center justify-between">
+              System Health <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            </h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-white/40 uppercase font-bold">Grid Feed Priority</span>
+                <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Normal</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-white/40 uppercase font-bold">Active Alarms</span>
+                <span className="text-[10px] text-white/60 font-bold">0 Portfolio-wide</span>
+              </div>
+              <div className="pt-4 border-t border-white/5">
+                <p className="text-[10px] text-white/20 italic mb-3">All connected inverters are reporting nominal production levels for current coordinates.</p>
+                <div className="flex items-center gap-2">
+                   <div className="flex-1 h-1 bg-[hsl(220_18%_14%)] rounded-full overflow-hidden">
+                      <div className="h-full bg-green-500" style={{ width: '100%' }} />
+                   </div>
+                   <span className="text-[9px] font-black text-green-400">100% OK</span>
+                </div>
+              </div>
+            </div>
           </Card>
         </div>
       </div>

@@ -91,6 +91,13 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     });
   });
 
+  app.get("/api/track/:token/monitoring", async (req, res) => {
+    const project = await storage.getProjectByToken(req.params.token);
+    if (!project) return res.status(404).json({ error: "Project not found" });
+    const readings = await storage.getReadingsByProject(project.id);
+    res.json({ readings, inverterModel: project.inverterModel, status: project.monitoringStatus });
+  });
+
   // ── Public: QR Code ──
   app.get("/api/qr/:token", async (req, res) => {
     const project = await storage.getProjectByToken(req.params.token);
@@ -240,6 +247,16 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   });
   app.patch("/api/admin/projects/:id", requireAuth, async (req, res) => res.json(await storage.updateProject(+req.params.id, req.body)));
   app.delete("/api/admin/projects/:id", requireAuth, async (req, res) => { await storage.deleteProject(+req.params.id); res.json({ ok: true }); });
+  
+  app.post("/api/admin/projects/:id/monitoring-config", requireAuth, async (req, res) => {
+    const proj = await storage.updateProject(+req.params.id, req.body);
+    res.json(proj);
+  });
+  app.post("/api/admin/projects/:id/generate-readings", requireAuth, async (req, res) => {
+    await storage.generateMockReadings(+req.params.id);
+    await storage.updateProject(+req.params.id, { monitoringStatus: "online", inverterModel: "Huawei SUN2000-5KTL-M1", inverterSerial: "SN-"+Math.random().toString(36).slice(2, 10).toUpperCase() });
+    res.json({ ok: true });
+  });
 
   // ── Admin: Milestones ──
   app.get("/api/admin/projects/:id/milestones", requireAuth, async (req, res) => res.json(await storage.getMilestonesByProject(+req.params.id)));

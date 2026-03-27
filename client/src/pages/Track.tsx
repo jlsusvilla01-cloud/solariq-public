@@ -8,6 +8,8 @@ import {
   MessageSquare, Phone, Mail, Languages, Star, PenLine, Image, X, ChevronLeft, ChevronRight,
   Download, QrCode, CheckCheck, FileText, CreditCard, Receipt, DollarSign, TrendingUp
 } from "lucide-react";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +58,17 @@ const T: Record<string, Record<string, string>> = {
     annualSavings: "Annual Savings",
     roiYears: "ROI Estimate",
     lifetimeSavings: "25-Year Savings",
+    liveMonitoring: "Live Monitoring",
+    currentPower: "Current Power",
+    dailyYield: "Daily Yield",
+    totalYield: "Lifetime Total",
+    systemHealth: "System Health",
+    generationHistory: "Generation History",
+    environmentalImpact: "Enviro-Impact",
+    treesPlanted: "Trees Equivalent",
+    co2Saved: "CO2 Offset",
+    monitoringOffline: "Monitoring is currently offline.",
+    noData: "No generation data yet.",
   },
   tl: {
     welcome: "Maligayang pagdating",
@@ -273,6 +286,141 @@ function PhotoGallery({ photos, lang }: { photos: MilestonePhoto[]; lang: string
   );
 }
 
+// ── Monitoring Dashboard (NEW) ──
+function MonitoringDashboard({ token, lang }: { token: string; lang: string }) {
+  const t = T[lang];
+  const { data, isLoading } = useQuery<{ readings: any[], inverterModel: string, status: string }>({
+    queryKey: ["/api/track", token, "monitoring"],
+    queryFn: async () => (await fetch(`/api/track/${token}/monitoring`)).json(),
+    refetchInterval: 60000,
+  });
+
+  if (isLoading) return (
+    <div className="space-y-4">
+      <div className="animate-pulse bg-white/5 h-32 rounded-2xl" />
+      <div className="animate-pulse bg-white/5 h-64 rounded-2xl" />
+    </div>
+  );
+
+  if (!data?.readings?.length) return (
+    <div className="bg-[hsl(220_24%_9%)] border border-dashed border-[hsl(220_18%_16%)] rounded-2xl p-8 text-center">
+      <Zap size={32} className="text-white/20 mx-auto mb-3" />
+      <p className="text-white/40 text-sm">{t.noData}</p>
+    </div>
+  );
+
+  const readings = [...data.readings].reverse();
+  const latest = readings[readings.length - 1];
+  const isOnline = data.status === "online";
+
+  // Impacts: 1MWh = ~0.7 tons CO2 = ~35 trees
+  const totalMWh = latest.energyTotalKwh / 1000;
+  const trees = Math.round(totalMWh * 35);
+  const co2 = (totalMWh * 0.7).toFixed(2);
+
+  return (
+    <div className="space-y-5">
+       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-[hsl(220_20%_12%)] border border-white/5 rounded-2xl p-5 relative overflow-hidden">
+            <div className="flex items-center gap-2 mb-3">
+              <Zap size={14} className="text-[#fbbf24]" />
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{t.currentPower}</span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-black text-white">{latest.wattageKw}</span>
+              <span className="text-sm font-bold text-white/30">kW</span>
+            </div>
+            <div className={`absolute top-4 right-4 w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`} />
+          </div>
+
+          <div className="bg-[hsl(220_20%_12%)] border border-white/5 rounded-2xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Sun size={14} className="text-[#fbbf24]" />
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{t.dailyYield}</span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-black text-white">{latest.energyTodayKwh}</span>
+              <span className="text-sm font-bold text-white/30">kWh</span>
+            </div>
+          </div>
+
+          <div className="bg-[hsl(220_20%_12%)] border border-white/5 rounded-2xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp size={14} className="text-[#fbbf24]" />
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">{t.totalYield}</span>
+            </div>
+            <div className="flex items-baseline gap-1">
+              <span className="text-3xl font-black text-white">{(latest.energyTotalKwh / 1000).toFixed(1)}</span>
+              <span className="text-sm font-bold text-white/30">MWh</span>
+            </div>
+          </div>
+       </div>
+
+       <div className="bg-[hsl(220_24%_9%)] border border-[hsl(220_18%_18%)] rounded-2xl p-5">
+          <h3 className="text-xs font-bold text-white/50 mb-4 uppercase tracking-widest">{t.generationHistory} (24h)</h3>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={readings}>
+                <defs>
+                  <linearGradient id="colorKw" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#fbbf24" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                <XAxis dataKey="timestamp" hide={true} />
+                <YAxis hide={true} domain={[0, 'auto']} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#111827', border: '1px solid #374151', borderRadius: '8px', fontSize: '10px', color: '#fff' }}
+                  labelFormatter={(v) => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  formatter={(v) => [`${v} kW`, 'Power']}
+                  itemStyle={{ color: '#fbbf24' }}
+                />
+                <Area type="monotone" dataKey="wattageKw" stroke="#fbbf24" strokeWidth={3} fillOpacity={1} fill="url(#colorKw)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+       </div>
+
+       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="bg-gradient-to-br from-[#fbbf24]/5 to-transparent border border-[#fbbf24]/10 rounded-2xl p-5 relative overflow-hidden group">
+            <div className="text-[10px] font-black text-[#fbbf24] uppercase mb-3 tracking-widest">{t.environmentalImpact}</div>
+            <div className="flex items-center gap-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🌳</span>
+                  <span className="text-xl font-black text-white">{trees}</span>
+                </div>
+                <p className="text-[9px] text-white/30 uppercase font-bold tracking-tighter">{t.treesPlanted}</p>
+              </div>
+              <div className="w-px h-10 bg-white/5" />
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">🌍</span>
+                  <span className="text-xl font-black text-white">{co2}</span>
+                </div>
+                <p className="text-[9px] text-white/30 uppercase font-bold tracking-tighter">{t.co2Saved}</p>
+              </div>
+            </div>
+            <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none group-hover:opacity-10 transition-opacity">
+               <Zap size={60} />
+            </div>
+          </div>
+          <div className="bg-[hsl(220_20%_12%)] border border-white/5 rounded-2xl p-5 flex flex-col justify-center">
+             <p className="text-[10px] text-white/40 uppercase mb-1 font-bold tracking-widest">Inverter Details</p>
+             <p className="text-sm font-bold text-white mb-2">{data.inverterModel || 'Huawei SUN2000'}</p>
+             <div className="flex items-center gap-2">
+                <div className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${isOnline ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                  {isOnline ? 'System Online' : 'System Offline'}
+                </div>
+                <span className="text-[10px] text-white/20">Ref: {token.slice(0, 8).toUpperCase()}</span>
+             </div>
+          </div>
+       </div>
+    </div>
+  );
+}
+
 // ── Main Track Page ──
 export default function TrackPage() {
   const { token } = useParams<{ token: string }>();
@@ -281,6 +429,7 @@ export default function TrackPage() {
   const [showSignModal, setShowSignModal] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [signerName, setSignerName] = useState("");
+  const [activeTab, setActiveTab] = useState<"progress" | "monitoring">("progress");
   const t = T[lang];
   const phaseLabels = PHASE_LABELS[lang];
 
@@ -398,6 +547,28 @@ export default function TrackPage() {
       )}
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+        {/* Tab Switcher (Optional) */}
+        {project.status === 'commissioned' && (
+          <div className="flex p-1 bg-[hsl(220_24%_8%)] rounded-xl border border-[hsl(220_18%_14%)] w-fit mx-auto mb-2">
+            <button 
+              onClick={() => setActiveTab('progress')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'progress' ? 'bg-[#fbbf24] text-[hsl(220_28%_6%)]' : 'text-white/40 hover:text-white'}`}
+            >
+              {lang === 'tl' ? 'Progreso' : 'Progress'}
+            </button>
+            <button 
+              onClick={() => setActiveTab('monitoring')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'monitoring' ? 'bg-[#fbbf24] text-[hsl(220_28%_6%)]' : 'text-white/40 hover:text-white'}`}
+            >
+              {t.liveMonitoring}
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'monitoring' ? (
+          <MonitoringDashboard token={token!} lang={lang} />
+        ) : (
+          <>
         {/* Project hero card */}
         <div className="bg-[hsl(220_24%_9%)] border border-[hsl(220_18%_18%)] rounded-2xl p-5">
           <div className="flex items-start justify-between gap-4 mb-4">
@@ -684,6 +855,8 @@ export default function TrackPage() {
             </div>
           </div>
         </div>
+          </>
+        )}
 
         {/* Contact */}
         <div className="bg-[hsl(220_24%_9%)] border border-[hsl(220_18%_18%)] rounded-2xl p-5 text-center">

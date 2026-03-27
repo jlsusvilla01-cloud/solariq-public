@@ -29,6 +29,10 @@ export const projects = sqliteTable("projects", {
   scheduledStart: text("scheduled_start"),
   scheduledEnd: text("scheduled_end"),
   createdAt: text("created_at").notNull().default(""),
+  // Monitoring (IoT)
+  inverterModel: text("inverter_model"),
+  inverterSerial: text("inverter_serial"),
+  monitoringStatus: text("monitoring_status").default("offline"), // online, offline, faulted
 });
 
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true });
@@ -491,3 +495,17 @@ export type Schedule = typeof schedules.$inferSelect;
 export type InsertSchedule = typeof schedules.$inferInsert;
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
+
+// ── NEW: IoT Solar Monitoring ──
+export const solarReadings = sqliteTable("solar_readings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: integer("project_id").notNull(),
+  wattageKw: real("wattage_kw").notNull(),
+  energyTodayKwh: real("energy_today_kwh").notNull(),
+  energyTotalKwh: real("energy_total_kwh").notNull(),
+  timestamp: text("timestamp").notNull(),
+});
+
+export const insertReadingSchema = createInsertSchema(solarReadings).omit({ id: true });
+export type InsertReading = z.infer<typeof insertReadingSchema>;
+export type SolarReading = typeof solarReadings.$inferSelect;
