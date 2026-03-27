@@ -162,13 +162,19 @@ export const insertNotifSchema = createInsertSchema(notificationPrefs).omit({ id
 export type InsertNotif = z.infer<typeof insertNotifSchema>;
 export type NotificationPref = typeof notificationPrefs.$inferSelect;
 
-// ── Admin Users (simple auth) ──
 export const admins = sqliteTable("admins", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").notNull(),
   password: text("password").notNull(), // plain text for demo
   name: text("name").notNull(),
+  email: text("email"),
+  googleId: text("google_id"),
 });
+
+export const insertAdminSchema = createInsertSchema(admins).omit({ id: true });
+export type InsertAdmin = typeof admins.$inferInsert;
+export type Admin = typeof admins.$inferSelect;
+
 
 // ── NEW: AI Designs ──
 export const designs = sqliteTable("designs", {

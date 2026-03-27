@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications } from "@shared/schema";
-import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification } from "@shared/schema";
+import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin } from "@shared/schema";
 import { eq } from "drizzle-orm";
 
 const client = createClient({ 
@@ -79,6 +79,8 @@ async function initDb() {
       ["What maintenance is required?","Solar panels require minimal maintenance. We recommend cleaning panels every 3–6 months (more often in dusty or coastal areas), and a professional inspection every 2–3 years. Inverters typically have a 5–10 year warranty.","maintenance",6],
       ["How much can I save on my electricity bill?","Savings depend on your system size, energy consumption, and local tariff. A properly sized 6 kWp system in the Philippines can offset 60–80% of a typical household electricity bill, saving ₱3,000–₱6,000 per month.","billing",7],
       ["Is my roof strong enough for solar panels?","Our survey team will assess your roof's structural integrity before any installation. Most concrete and steel roofs are suitable. If reinforcement is needed, we will advise you before proceeding.","structural",8],
+      ["Can I upgrade my system later?","Yes, our systems are designed with scalability in mind. You can add more panels or upgrade your inverter/battery capacity as your energy needs grow, provided there is enough roof space.","technical",9],
+      ["What financing options are available?","We offer several flexible financing plans, including 0% interest bridge loans for the first 6 months and partnerships with major local banks for long-term solar loans up to 10 years.","billing",10],
     ];
     for (const [q, a, c, o] of seedFaqsByPhase) {
       await client.execute({ sql: "INSERT INTO faqs (question,answer,category,sort_order,published) VALUES (?,?,?,?,1)", args: [q, a, c, o] });
@@ -106,11 +108,15 @@ async function initDb() {
       ["Starter",999,"month","Perfect for new solar contractors with a small client base",JSON.stringify(["Up to 5 active projects","Client progress tracker","Basic milestone tracking","Share link for clients","Email support","SolarIQ branding"]),0,"Start Free Trial",1],
       ["Professional",2499,"month","The complete toolkit for growing contractors",JSON.stringify(["Up to 25 active projects","All Starter features","Photo updates per milestone","Change order tracking","Permit & BOM manager","Priority support","Custom branding / white-label","SMS/email client notifications"]),1,"Start Free Trial",2],
       ["Enterprise",4999,"month","For large contractors and EPCs managing complex portfolios",JSON.stringify(["Unlimited projects","All Pro features","3D solar designer + yield simulation","Structural load calculator","Shading analysis tool","Dedicated account manager","API access for integrations","Custom domain","Team access (up to 10 users)","Investor PDF reports"]),0,"Contact Sales",3],
+      ["Starter (Annual)",799,"year","Perfect for new solar contractors with a small client base",JSON.stringify(["Up to 5 active projects","Client progress tracker","Basic milestone tracking","Share link for clients","Email support","SolarIQ branding"]),0,"Start Free Trial",4],
+      ["Professional (Annual)",1999,"year","The complete toolkit for growing contractors",JSON.stringify(["Up to 25 active projects","All Starter features","Photo updates per milestone","Change order tracking","Permit & BOM manager","Priority support","Custom branding / white-label","SMS/email client notifications"]),1,"Start Free Trial",5],
+      ["Enterprise (Annual)",3999,"year","For large contractors and EPCs managing complex portfolios",JSON.stringify(["Unlimited projects","All Pro features","3D solar designer + yield simulation","Structural load calculator","Shading analysis tool","Dedicated account manager","API access for integrations","Custom domain","Team access (up to 10 users)","Investor PDF reports"]),0,"Contact Sales",6],
     ];
     for (const [n, p, b, d, f, h, c, o] of plans) {
       await client.execute({ sql: "INSERT INTO pricing_plans (name,price,billing_cycle,description,features,highlighted,cta_label,sort_order,published) VALUES (?,?,?,?,?,?,?,?,1)", args: [n, p, b, d, f, h, c, o] });
     }
   }
+
 
   const projRes = await client.execute("SELECT COUNT(*) as c FROM projects");
   if (Number(projRes.rows[0].c) === 0) {
@@ -462,6 +468,20 @@ export class Storage {
   }
   async updateServiceJob(id: number, data: Partial<ServiceJob>) {
     const res = await db.update(serviceJobs).set(data).where(eq(serviceJobs.id, id)).returning().all();
+    return res[0];
+  }
+
+  // Auth
+  async createAdmin(data: any): Promise<Admin> {
+    const res = await db.insert(admins).values(data).returning().all();
+    return res[0];
+  }
+  async findAdminByGoogleId(googleId: string): Promise<Admin | undefined> {
+    const res = await db.select().from(admins).where(eq(admins.googleId, googleId)).all();
+    return res[0];
+  }
+  async findAdminByEmail(email: string): Promise<Admin | undefined> {
+    const res = await db.select().from(admins).where(eq(admins.email, email)).all();
     return res[0];
   }
 

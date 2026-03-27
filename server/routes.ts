@@ -135,10 +135,68 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     res.json({ ok: true, name: admin.name, token: Buffer.from(`${username}:${password}`).toString("base64") });
   });
 
+  // ── Google OAuth (Mocked for Demo) ──
+  // In a real app, you'd use Passport with GoogleStrategy and real Client IDs.
+  // We're providing the infrastructure here so you can easily swap it.
+  app.get("/api/auth/google", (req, res) => {
+    // Redirect to a mock Google consent screen
+    const callbackUrl = `${req.protocol}://${req.get("host")}/api/auth/google/callback?code=mock_code`;
+    res.send(`
+      <div style="font-family:sans-serif;text-align:center;padding:100px;background:#0f1117;color:white;height:100vh">
+        <h1 style="color:#fbbf24">Mock Google Login</h1>
+        <p>In production, this would be accounts.google.com</p>
+        <a href="${callbackUrl}" style="background:#fbbf24;color:#0f1117;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">
+          Continue as demo@solariq.app
+        </a>
+      </div>
+    `);
+  });
+
+  app.get("/api/auth/google/callback", async (req, res) => {
+    // Mock user info from "Google"
+    const mockUser = {
+      googleId: "google-12345",
+      email: "demo@solariq.app",
+      displayName: "Solar Champion",
+    };
+
+    let admin = await storage.findAdminByGoogleId(mockUser.googleId);
+    if (!admin) {
+      // Automatic Sign-up: Create new admin if not exists
+      admin = await storage.createAdmin({
+        username: mockUser.email,
+        password: "oauth-user", // placeholder
+        name: mockUser.displayName,
+        email: mockUser.email,
+        googleId: mockUser.googleId,
+      });
+    }
+
+    // Generate token (using our simple Basic Auth compat for now)
+    const token = Buffer.from(`${admin.username}:oauth-user`).toString("base64");
+    
+    // Redirect back to Admin with session info
+    res.send(`
+      <script>
+        localStorage.setItem('solariq_admin_name', '${admin.name}');
+        localStorage.setItem('solariq_admin_token', '${token}');
+        window.location.href = '/#/admin';
+      </script>
+    `);
+  });
+
   const requireAuth = async (req: any, res: any, next: any) => {
     const auth = req.headers.authorization;
     if (!auth?.startsWith("Basic ")) return res.status(401).json({ error: "Unauthorized" });
     const [u, p] = Buffer.from(auth.slice(6), "base64").toString().split(":");
+    // For OAuth users, we accept our placeholder password
+    if (p === "oauth-user") {
+        const admin = await storage.findAdminByEmail(u);
+        if (admin) {
+            next();
+            return;
+        }
+    }
     if (!(await storage.getAdmin(u, p))) return res.status(401).json({ error: "Unauthorized" });
     next();
   };

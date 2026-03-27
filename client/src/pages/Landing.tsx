@@ -291,16 +291,32 @@ function FAQ() {
 // ── Pricing ──
 function Pricing() {
   const { data: plans = [] } = useQuery<PricingPlan[]>({ queryKey: ["/api/public/pricing"] });
+  const [billingCycle, setBillingCycle] = useState<"month" | "year">("month");
+  const filteredPlans = plans.filter(p => p.billingCycle === billingCycle);
+
   return (
     <section id="pricing" className="py-24 bg-[hsl(220_28%_6%)]">
       <div className="max-w-5xl mx-auto px-4">
-        <div className="text-center mb-16">
+        <div className="text-center mb-10">
           <Badge className="mb-4 bg-[#fbbf24]/10 text-[#fbbf24] border border-[#fbbf24]/25 text-xs">Simple Pricing</Badge>
           <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">Start free, scale as<br/><span className="gradient-text">your business grows</span></h2>
-          <p className="text-white/50 text-sm">All plans include a 14-day free trial. No credit card required.</p>
+          <p className="text-white/50 text-sm mb-8">All plans include a 14-day free trial. No credit card required.</p>
+          
+          <div className="flex items-center justify-center gap-4">
+            <span className={`text-sm ${billingCycle === "month" ? "text-white font-bold" : "text-white/40"}`}>Monthly</span>
+            <button 
+              onClick={() => setBillingCycle(c => c === "month" ? "year" : "month")}
+              className="w-12 h-6 bg-[hsl(220_18%_18%)] rounded-full relative p-1 transition-colors hover:bg-[hsl(220_18%_24%)]"
+            >
+              <div className={`w-4 h-4 bg-[#fbbf24] rounded-full transition-transform duration-300 ${billingCycle === "year" ? "translate-x-6" : "translate-x-0"}`} />
+            </button>
+            <span className={`text-sm ${billingCycle === "year" ? "text-white font-bold" : "text-white/40"}`}>
+              Annually <Badge variant="outline" className="ml-1.5 border-[#fbbf24]/20 text-[#fbbf24] bg-[#fbbf24]/5 text-[10px] px-1.5 py-0">-20%</Badge>
+            </span>
+          </div>
         </div>
         <div className="grid sm:grid-cols-3 gap-5 items-start">
-          {plans.map(plan => {
+          {filteredPlans.map(plan => {
             const feats: string[] = JSON.parse(plan.features || "[]");
             return (
               <div key={plan.id} className={`relative bg-[hsl(220_24%_9%)] rounded-2xl p-7 flex flex-col border transition-all ${plan.highlighted ? "border-[#fbbf24]/60 card-glow" : "border-[hsl(220_18%_18%)] hover:border-[#fbbf24]/25"}`}>
