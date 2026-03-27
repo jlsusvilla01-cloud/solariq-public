@@ -113,19 +113,43 @@ function Hero() {
   );
 }
 
+
+// ── Dashboard Preview ──
+function DashboardPreview() {
+  return (
+    <section className="py-20 bg-[hsl(220_28%_6%)] relative overflow-hidden">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[400px] bg-[#fbbf24] opacity-[0.03] blur-[120px] pointer-events-none rounded-full" />
+      <div className="max-w-6xl mx-auto px-4 relative z-10">
+        <div className="text-center mb-12">
+          <Badge className="mb-4 bg-[#fbbf24]/10 text-[#fbbf24] border border-[#fbbf24]/25 text-xs">Contractor ERP</Badge>
+          <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">Elite ERP Tools for Elite Contractors</h2>
+          <p className="text-white/50 max-w-xl mx-auto">From stock management to crew scheduling — run your entire solar operation from a single unified panel.</p>
+        </div>
+        <div className="relative group p-1 bg-gradient-to-br from-[#fbbf24]/20 to-transparent rounded-3xl overflow-hidden shadow-2xl">
+          <img 
+            src="/erp-preview.png" 
+            alt="SolarIQ ERP Dashboard" 
+            className="w-full h-auto rounded-3xl object-cover hover:scale-[1.01] transition-transform duration-700"
+          />
+          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[hsl(220_28%_6%)] to-transparent" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ── Features ──
 function Features() {
   const features = [
-    { icon: MapPin, title: "Live Progress Tracker", desc: "Every client gets a unique shareable link to monitor their installation in real time — no app install needed.", color: "text-[#fbbf24]", bg: "bg-[#fbbf24]/10" },
-    { icon: ShieldCheck, title: "Structural Load Calculator", desc: "Verify your roof can handle the panel weight before a single bolt is driven. ASCE 7 simplified analysis.", color: "text-blue-400", bg: "bg-blue-400/10" },
-    { icon: TreePine, title: "Shading Analysis", desc: "Map obstructions on a solar sun-path diagram and calculate exact annual yield loss before installation.", color: "text-green-400", bg: "bg-green-400/10" },
-    { icon: ClipboardCheck, title: "OSHA Safety Checklist", desc: "37-item pre-installation safety checklist covering OSHA 29 CFR 1926, NEC Article 690, and NABCEP standards.", color: "text-orange-400", bg: "bg-orange-400/10" },
-    { icon: FileText, title: "Permit Tracker", desc: "Track building, electrical, and utility interconnection permits per project. Know your status at a glance.", color: "text-purple-400", bg: "bg-purple-400/10" },
-    { icon: Package, title: "Bill of Materials", desc: "Auto-generate a full BOM from project specs. Track each item from ordered → received → installed.", color: "text-teal-400", bg: "bg-teal-400/10" },
-    { icon: BarChart3, title: "Financial Calculator", desc: "25-year cashflow projections, payback period, IRR, and NPV — with adjustable tariff and escalation rates.", color: "text-[#fbbf24]", bg: "bg-[#fbbf24]/10" },
-    { icon: Bell, title: "Client Update Posts", desc: "Push milestone updates and photos directly to the client tracker. Zero WhatsApp chasing required.", color: "text-rose-400", bg: "bg-rose-400/10" },
-    { icon: FileText, title: "Investor PDF Reports", desc: "One-click professional investor-grade PDF: technical specs, financial projections, CO₂ impact, and risk analysis.", color: "text-amber-400", bg: "bg-amber-400/10" },
+    { icon: TrendingUp, title: "Executive Analytics", desc: "Monitor multi-project revenue, progress averages, and deal close rates from a high-fidelity visual dashboard.", color: "text-[#fbbf24]", bg: "bg-[#fbbf24]/10" },
+    { icon: Package, title: "Live Inventory Ledger", desc: "Track panel and inverter stock levels atomically across warehouse locations with automatic low-stock alerts.", color: "text-blue-400", bg: "bg-blue-400/10" },
+    { icon: Clock, title: "Crew Gantt Scheduling", desc: "Visual project timelines to assign crews and track task completion over 30-day horizons.", color: "text-green-400", bg: "bg-green-400/10" },
+    { icon: FileText, title: "Proposal PDF Engine", desc: "Generate professional, investor-grade PDF proposals with localized financial projections in one click.", color: "text-purple-400", bg: "bg-purple-400/10" },
+    { icon: MapPin, title: "Live Progress Tracker", desc: "Each client gets a unique tracker link to see milestones, photos, and updates in real-time — zero app install needed.", color: "text-orange-400", bg: "bg-orange-400/10" },
+    { icon: ShieldCheck, title: "Roof Structural Check", desc: "Verify roof structural feasibility before installation using integrated ASCE load calculations.", color: "text-teal-400", bg: "bg-teal-400/10" },
+    { icon: Star, title: "Automated Referrals", desc: "Incentivize your existing clients to refer new neighbors with a tracked, payout-ready referral engine.", color: "text-amber-400", bg: "bg-amber-400/10" },
   ];
+
   return (
     <section id="features" className="py-24 bg-[hsl(220_28%_6%)]">
       <div className="max-w-6xl mx-auto px-4">
