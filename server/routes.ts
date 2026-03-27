@@ -153,52 +153,62 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   });
 
   app.get("/api/auth/google/callback", async (req, res) => {
-    // Mock user info from "Google"
-    const mockUser = {
-      googleId: "google-12345",
-      email: "demo@solariq.app",
-      displayName: "Solar Champion",
-    };
+    try {
+      // Mock user info from "Google"
+      const mockUser = {
+        googleId: "google-12345",
+        email: "demo@solariq.app",
+        displayName: "Solar Champion",
+      };
 
-    let admin = await storage.findAdminByGoogleId(mockUser.googleId);
-    if (!admin) {
-      // Automatic Sign-up: Create new admin if not exists
-      admin = await storage.createAdmin({
-        username: mockUser.email,
-        password: "oauth-user", // placeholder
-        name: mockUser.displayName,
-        email: mockUser.email,
-        googleId: mockUser.googleId,
-      });
+      let admin = await storage.findAdminByGoogleId(mockUser.googleId);
+      if (!admin) {
+        console.log("Creating new admin from Google OAuth...");
+        admin = await storage.createAdmin({
+          username: mockUser.email,
+          password: "oauth-user",
+          name: mockUser.displayName,
+          email: mockUser.email,
+          googleId: mockUser.googleId,
+        });
+      }
+
+      const token = Buffer.from(`${admin.username}:oauth-user`).toString("base64");
+      res.send(`
+        <script>
+          localStorage.setItem('solariq_admin_name', '${admin.name}');
+          localStorage.setItem('solariq_admin_token', '${token}');
+          window.location.href = '/#/admin';
+        </script>
+      `);
+    } catch (e: any) {
+      console.error("Auth callback error:", e);
+      res.status(500).send(`Authentication error: ${e.message}`);
     }
-
-    // Generate token (using our simple Basic Auth compat for now)
-    const token = Buffer.from(`${admin.username}:oauth-user`).toString("base64");
-    
-    // Redirect back to Admin with session info
-    res.send(`
-      <script>
-        localStorage.setItem('solariq_admin_name', '${admin.name}');
-        localStorage.setItem('solariq_admin_token', '${token}');
-        window.location.href = '/#/admin';
-      </script>
-    `);
   });
 
   const requireAuth = async (req: any, res: any, next: any) => {
-    const auth = req.headers.authorization;
-    if (!auth?.startsWith("Basic ")) return res.status(401).json({ error: "Unauthorized" });
-    const [u, p] = Buffer.from(auth.slice(6), "base64").toString().split(":");
-    // For OAuth users, we accept our placeholder password
-    if (p === "oauth-user") {
-        const admin = await storage.findAdminByEmail(u);
-        if (admin) {
-            next();
-            return;
-        }
+    try {
+      const auth = req.headers.authorization;
+      if (!auth?.startsWith("Basic ")) return res.status(401).json({ error: "Unauthorized" });
+      const [u, p] = Buffer.from(auth.slice(6), "base64").toString().split(":");
+      
+      // For OAuth users, we accept our placeholder password
+      if (p === "oauth-user") {
+          const admin = await storage.findAdminByEmail(u);
+          if (admin) {
+              next();
+              return;
+          }
+      }
+      
+      const admin = await storage.getAdmin(u, p);
+      if (!admin) return res.status(401).json({ error: "Unauthorized" });
+      next();
+    } catch (e) {
+      console.error("Auth middleware error:", e);
+      res.status(401).json({ error: "Unauthorized (Session Error)" });
     }
-    if (!(await storage.getAdmin(u, p))) return res.status(401).json({ error: "Unauthorized" });
-    next();
   };
 
   // ── Admin: Projects ──

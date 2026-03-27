@@ -12,9 +12,10 @@ export const db = drizzle(client);
 
 async function seedAll() {
   // Seed admins
-  const adminRes = await client.execute("SELECT COUNT(*) as c FROM admins");
+  const adminRes = await client.execute({ sql: "SELECT COUNT(*) as c FROM admins WHERE username=?", args: ["admin"] });
   if (Number(adminRes.rows[0].c) === 0) {
-    await client.execute(`INSERT INTO admins VALUES (1,'admin','solariq2026','SolarIQ Admin', 'admin@solariq.app', NULL)`);
+    console.log("Seeding default admin...");
+    await client.execute(`INSERT INTO admins (username, password, name, email) VALUES ('admin','solariq2026','SolarIQ Admin', 'admin@solariq.app')`);
   }
 
   // Seed FAQs
