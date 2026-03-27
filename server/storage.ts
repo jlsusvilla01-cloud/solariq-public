@@ -10,64 +10,14 @@ const client = createClient({
 });
 export const db = drizzle(client);
 
-export { initDb };
-async function initDb() {
-  await client.execute(`CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, client_name TEXT NOT NULL, client_email TEXT, client_phone TEXT, address TEXT NOT NULL, system_kw REAL NOT NULL DEFAULT 6, panel_count INTEGER NOT NULL DEFAULT 15, contract_value REAL NOT NULL DEFAULT 0, share_token TEXT NOT NULL, start_date TEXT, estimated_end_date TEXT, notes TEXT, contractor_notes TEXT, status TEXT NOT NULL DEFAULT 'survey', overall_progress INTEGER NOT NULL DEFAULT 0, roi_projected_years INTEGER DEFAULT 5, annual_savings INTEGER DEFAULT 0, total_lifetime_savings INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT '')`);
-  // Migration for existing tables
-  try { await client.execute("ALTER TABLE projects ADD COLUMN roi_projected_years INTEGER DEFAULT 5"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN annual_savings INTEGER DEFAULT 0"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN total_lifetime_savings INTEGER DEFAULT 0"); } catch(e){}
-  await client.execute(`CREATE TABLE IF NOT EXISTS milestones (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, description TEXT, phase TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', completed_at TEXT, sort_order INTEGER NOT NULL DEFAULT 0, photo TEXT, note TEXT)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS updates (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, message TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'update', posted_by TEXT NOT NULL DEFAULT 'Contractor', created_at TEXT NOT NULL DEFAULT '', is_read INTEGER NOT NULL DEFAULT 0)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS faqs (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT NOT NULL, answer TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'general', sort_order INTEGER NOT NULL DEFAULT 0, published INTEGER NOT NULL DEFAULT 1)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS testimonials (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, location TEXT, role TEXT NOT NULL DEFAULT 'Homeowner', quote TEXT NOT NULL, rating INTEGER NOT NULL DEFAULT 5, system_size TEXT, published INTEGER NOT NULL DEFAULT 1, avatar_initials TEXT, created_at TEXT NOT NULL DEFAULT '')`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS pricing_plans (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, price REAL NOT NULL, billing_cycle TEXT NOT NULL DEFAULT 'month', description TEXT, features TEXT NOT NULL DEFAULT '[]', highlighted INTEGER NOT NULL DEFAULT 0, cta_label TEXT NOT NULL DEFAULT 'Get Started', sort_order INTEGER NOT NULL DEFAULT 0, published INTEGER NOT NULL DEFAULT 1)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS milestone_photos (id INTEGER PRIMARY KEY AUTOINCREMENT, milestone_id INTEGER NOT NULL, project_id INTEGER NOT NULL, data_url TEXT NOT NULL, caption TEXT, photo_type TEXT NOT NULL DEFAULT 'progress', created_at TEXT NOT NULL DEFAULT '')`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS signatures (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, signer_name TEXT NOT NULL, signer_role TEXT NOT NULL DEFAULT 'Client', signature_data_url TEXT NOT NULL, signed_at TEXT NOT NULL DEFAULT '', ip_address TEXT, agreement_text TEXT)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS notification_prefs (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, email TEXT, phone TEXT, email_enabled INTEGER NOT NULL DEFAULT 1, sms_enabled INTEGER NOT NULL DEFAULT 0, notify_on_milestone INTEGER NOT NULL DEFAULT 1, notify_on_update INTEGER NOT NULL DEFAULT 1)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS admins (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, password TEXT NOT NULL, name TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS quotations (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, items TEXT NOT NULL DEFAULT '[]', total_amount REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'draft', valid_until TEXT, created_at TEXT NOT NULL DEFAULT '')`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'permit', file_url TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'uploaded', uploaded_at TEXT NOT NULL DEFAULT '', requires_signature INTEGER NOT NULL DEFAULT 0)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, milestone_id INTEGER, amount REAL NOT NULL, status TEXT NOT NULL DEFAULT 'pending', payment_method TEXT, transaction_id TEXT, paid_at TEXT, created_at TEXT NOT NULL DEFAULT '')`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS designs (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, panel_capacity_kw REAL NOT NULL, panels JSON NOT NULL DEFAULT '[]', annual_yield_kwh REAL NOT NULL, status TEXT NOT NULL DEFAULT 'draft', created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'panels', quantity INTEGER NOT NULL DEFAULT 0, unit TEXT NOT NULL DEFAULT 'pcs', min_threshold INTEGER NOT NULL DEFAULT 5, updated_at TEXT NOT NULL DEFAULT '')`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS leads (id INTEGER PRIMARY KEY AUTOINCREMENT, client_name TEXT NOT NULL, client_email TEXT, client_phone TEXT, address TEXT NOT NULL, source TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'new', notes TEXT, created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS referrals (id INTEGER PRIMARY KEY AUTOINCREMENT, referrer_project_id INTEGER NOT NULL, referred_name TEXT NOT NULL, referred_email TEXT, commission_amount INTEGER DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS vendors (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, category TEXT NOT NULL, contact_person TEXT, contact_phone TEXT, created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS purchase_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, vendor_id INTEGER NOT NULL, po_number TEXT NOT NULL, total_amount REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'draft', items_json TEXT NOT NULL DEFAULT '[]', delivery_expected TEXT, created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS crews (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, location TEXT NOT NULL, contact_number TEXT, status TEXT NOT NULL DEFAULT 'idle', current_project_id INTEGER, last_weather_risk TEXT)`);
-  // Feature tables
-  await client.execute(`CREATE TABLE IF NOT EXISTS proposals (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, template_style TEXT NOT NULL DEFAULT 'modern', include_roi INTEGER NOT NULL DEFAULT 1, include_financing INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'draft', notes TEXT, created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS service_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'maintenance', description TEXT NOT NULL, scheduled_date TEXT, resolved_date TEXT, status TEXT NOT NULL DEFAULT 'open', technician_name TEXT, notes TEXT, created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS client_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, sender TEXT NOT NULL DEFAULT 'client', message TEXT NOT NULL, is_read INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS tenants (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, subdomain TEXT NOT NULL, logo_url TEXT, primary_color TEXT NOT NULL DEFAULT '#fbbf24', plan_tier TEXT NOT NULL DEFAULT 'starter', owner_email TEXT, active_projects INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`);
-  // ERP Tables
-  await client.execute(`CREATE TABLE IF NOT EXISTS employees (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'installer', email TEXT, phone TEXT, daily_rate REAL DEFAULT 0, employment_type TEXT NOT NULL DEFAULT 'full-time', status TEXT NOT NULL DEFAULT 'active', hired_date TEXT, created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS timesheets (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, project_id INTEGER, date TEXT NOT NULL, hours_worked REAL NOT NULL DEFAULT 8, task_description TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS chart_of_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'expense', balance REAL NOT NULL DEFAULT 0)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS journal_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NOT NULL, debit_account_id INTEGER NOT NULL, credit_account_id INTEGER NOT NULL, amount REAL NOT NULL, reference TEXT, type TEXT NOT NULL DEFAULT 'general', date TEXT NOT NULL, created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS compliance_items (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'permit', due_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', notes TEXT, project_id INTEGER, created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS bom_templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, system_kw REAL NOT NULL, items TEXT NOT NULL DEFAULT '[]', total_cost REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`);
-  // Elite ERP tables
-  await client.execute(`CREATE TABLE IF NOT EXISTS stock_transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, inventory_id INTEGER NOT NULL, type TEXT NOT NULL, quantity REAL NOT NULL, reference TEXT, created_at TEXT NOT NULL)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS schedules (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL, resource_id INTEGER)`);
-  await client.execute(`CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, message TEXT NOT NULL, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL)`);
-  // Migrations for existing tables
-  try { await client.execute("ALTER TABLE projects ADD COLUMN client_portal_pin TEXT"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN tenant_id INTEGER DEFAULT 1"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN scheduled_start TEXT"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN scheduled_end TEXT"); } catch(e){}
-  try { await client.execute("ALTER TABLE inventory ADD COLUMN warehouse_location TEXT DEFAULT 'A1-W1'"); } catch(e){}
-  try { await client.execute("ALTER TABLE proposals ADD COLUMN is_published INTEGER DEFAULT 0"); } catch(e){}
-  try { await client.execute("ALTER TABLE proposals ADD COLUMN total_value REAL DEFAULT 0"); } catch(e){}
-  try { await client.execute("ALTER TABLE proposals ADD COLUMN snapshot_json TEXT"); } catch(e){}
-
-  // Seed data
+async function seedAll() {
+  // Seed admins
   const adminRes = await client.execute("SELECT COUNT(*) as c FROM admins");
   if (Number(adminRes.rows[0].c) === 0) {
-    await client.execute(`INSERT INTO admins VALUES (1,'admin','solariq2026','SolarIQ Admin')`);
+    await client.execute(`INSERT INTO admins VALUES (1,'admin','solariq2026','SolarIQ Admin', 'admin@solariq.app', NULL)`);
   }
 
+  // Seed FAQs
   const faqRes = await client.execute("SELECT COUNT(*) as c FROM faqs");
   if (Number(faqRes.rows[0].c) === 0) {
     const seedFaqsByPhase = [
@@ -87,13 +37,14 @@ async function initDb() {
     }
   }
 
+  // Seed Testimonials
   const testRes = await client.execute("SELECT COUNT(*) as c FROM testimonials");
   if (Number(testRes.rows[0].c) === 0) {
     const seeds = [
       ["Maria Santos","Quezon City","Homeowner","SolarIQ made the entire process transparent. I could check my installation progress anytime from my phone. The crew was professional and finished 2 days ahead of schedule!",5,"8 kWp","MS"],
       ["Roberto Reyes","Cebu City","Business Owner","We installed a 25 kWp system for our restaurant. The platform tracked every milestone and the contractor sent us photos at each stage. Our electricity bill dropped by 70%.",5,"25 kWp","RR"],
       ["Ana dela Cruz","Davao City","Homeowner","As someone who knew nothing about solar, the FAQ section answered all my questions. The progress tracker gave me peace of mind during the whole installation.",5,"6 kWp","AD"],
-      ["Engr. Jose Magno","Manila","Solar Contractor","The admin dashboard saves me hours every week. I manage 12 active projects and all clients can see their progress in real time. No more endless WhatsApp messages asking for updates.",5,"Contractor","JM"],
+      ["Jose Magno","Manila","Solar Contractor","The admin dashboard saves me hours every week. I manage 12 active projects and all clients can see their progress in real time. No more endless WhatsApp messages asking for updates.",5,"Contractor","JM"],
       ["Grace Villanueva","Laguna","Homeowner","The change order tracking feature kept us informed when there was a design adjustment. No surprises, no hidden costs. Exactly what you want from a contractor.",5,"10 kWp","GV"],
       ["Carlo Mendoza","Iloilo","SME Owner","From site survey to full commissioning, everything was logged. Our 40 kWp commercial system was installed flawlessly. ROI is tracking ahead of projections.",5,"40 kWp","CM"],
     ];
@@ -102,6 +53,7 @@ async function initDb() {
     }
   }
 
+  // Seed Pricing
   const planRes = await client.execute("SELECT COUNT(*) as c FROM pricing_plans");
   if (Number(planRes.rows[0].c) === 0) {
     const plans = [
@@ -117,7 +69,7 @@ async function initDb() {
     }
   }
 
-
+  // Seed Demo Project
   const projRes = await client.execute("SELECT COUNT(*) as c FROM projects");
   if (Number(projRes.rows[0].c) === 0) {
     const token = "demo-abc123";
@@ -126,7 +78,6 @@ async function initDb() {
     const p = await client.execute({ sql: "SELECT id FROM projects WHERE share_token=?", args: [token] });
     const pid = Number(p.rows[0].id);
 
-    // Seed new features for project 1
     await client.execute({ sql: "INSERT INTO quotations (project_id, items, total_amount, status, valid_until, created_at) VALUES (?, ?, ?, ?, ?, ?)", args: [pid, JSON.stringify([{ description: "8kWP Solar System", quantity: 1, unitPrice: 192000, total: 192000 }]), 192000, "approved", "2026-05-01", new Date().toISOString()] });
     await client.execute({ sql: "INSERT INTO documents (project_id, title, type, file_url, status, uploaded_at) VALUES (?, ?, ?, ?, ?, ?)", args: [pid, "Building Permit - Approved", "permit", "https://example.com/permit.pdf", "approved", new Date().toISOString()] });
     await client.execute({ sql: "INSERT INTO documents (project_id, title, type, file_url, status, uploaded_at) VALUES (?, ?, ?, ?, ?, ?)", args: [pid, "Net Metering App - Pending Utility", "net_metering", "https://example.com/netmetering.pdf", "reviewing", new Date().toISOString()] });
@@ -145,9 +96,10 @@ async function initDb() {
       [pid,"Final Inspection","Local authority and utility inspection","inspection","pending",null,9],
       [pid,"Commissioning & Handover","System tested, monitoring set up, client training","commissioned","pending",null,10],
     ];
-    for (const [pid, t, d, p, s, c, o] of phases) {
-      await client.execute({ sql: "INSERT INTO milestones (project_id,title,description,phase,status,completed_at,sort_order) VALUES (?,?,?,?,?,?,?)", args: [pid, t, d, p, s, c, o] });
+    for (const [prid, t, d, ph, s, c, o] of phases) {
+      await client.execute({ sql: "INSERT INTO milestones (project_id,title,description,phase,status,completed_at,sort_order) VALUES (?,?,?,?,?,?,?)", args: [prid, t, d, ph, s, c, o] });
     }
+    
     const updatesSeeds = [
       [pid,"Welcome to your SolarIQ progress tracker! We'll keep you updated every step of the way.","update","SolarIQ Team","2026-03-01T09:00:00Z"],
       [pid,"Site survey completed. Your roof is in excellent condition — no structural issues found!","milestone","Engr. Santos","2026-03-05T14:30:00Z"],
@@ -155,8 +107,8 @@ async function initDb() {
       [pid,"All materials are on-site and inventoried. Installation crew arrives tomorrow morning at 7am.","update","Engr. Santos","2026-03-28T16:45:00Z"],
       [pid,"Panel installation is 60% complete. Looking great up there! We'll send photos this afternoon.","update","Engr. Santos","2026-04-03T11:00:00Z"],
     ];
-    for (const [pid, m, t, b, c] of updatesSeeds) {
-      await client.execute({ sql: "INSERT INTO updates (project_id,message,type,posted_by,created_at) VALUES (?,?,?,?,?)", args: [pid, m, t, b, c] });
+    for (const [prid, m, t, b, c] of updatesSeeds) {
+      await client.execute({ sql: "INSERT INTO updates (project_id,message,type,posted_by,created_at) VALUES (?,?,?,?,?)", args: [prid, m, t, b, c] });
     }
 
     // Seed Inventory
@@ -164,91 +116,82 @@ async function initDb() {
     await client.execute({ sql: "INSERT INTO inventory (item_name, category, quantity, unit, min_threshold, updated_at) VALUES (?, ?, ?, ?, ?, ?)", args: ["Hybrid Inverter - 10kW", "inverters", 3, "pcs", 5, new Date().toISOString()] });
 
     // Seed Crews
-    const crewRes = await client.execute("SELECT COUNT(*) as c FROM crews");
-    if (Number(crewRes.rows[0].c) === 0) {
-      await client.execute(`INSERT INTO crews (name, location, status, last_weather_risk) VALUES 
-        ('Team Alfa (Metro Manila)', 'Quezon City', 'on-site', 'Low'),
-        ('Team Bravo (Cebu)', 'Cebu City', 'transit', 'HIGH'),
-        ('Team Charlie (Davao)', 'Davao City', 'idle', 'Mid')`);
-    }
+    await client.execute(`INSERT INTO crews (name, location, status, last_weather_risk) VALUES 
+      ('Team Alfa (Metro Manila)', 'Quezon City', 'on-site', 'Low'),
+      ('Team Bravo (Cebu)', 'Cebu City', 'transit', 'HIGH'),
+      ('Team Charlie (Davao)', 'Davao City', 'idle', 'Mid')`);
 
     // Seed Tenants
-    const tenantRes = await client.execute("SELECT COUNT(*) as c FROM tenants");
-    if (Number(tenantRes.rows[0].c) === 0) {
-      await client.execute({ sql: "INSERT INTO tenants (name, subdomain, primary_color, plan_tier, owner_email, active_projects, created_at) VALUES (?,?,?,?,?,?,?)", args: ["SolarPH Contractors", "solarph", "#fbbf24", "enterprise", "admin@solarph.com", 12, new Date().toISOString()] });
-      await client.execute({ sql: "INSERT INTO tenants (name, subdomain, primary_color, plan_tier, owner_email, active_projects, created_at) VALUES (?,?,?,?,?,?,?)", args: ["SunPower Cebu", "suncebu", "#22d3ee", "pro", "ops@suncebu.com", 5, new Date().toISOString()] });
-      await client.execute({ sql: "INSERT INTO tenants (name, subdomain, primary_color, plan_tier, owner_email, active_projects, created_at) VALUES (?,?,?,?,?,?,?)", args: ["GreenWatt Davao", "greenwatt", "#34d399", "starter", "hello@greenwatt.ph", 2, new Date().toISOString()] });
-    }
-
-    // Seed Service Jobs
-    const svcRes = await client.execute("SELECT COUNT(*) as c FROM service_jobs");
-    if (Number(svcRes.rows[0].c) === 0) {
-      const p = await client.execute({ sql: "SELECT id FROM projects LIMIT 1", args: [] });
-      if (p.rows.length > 0) {
-        const pid = Number(p.rows[0].id);
-        await client.execute({ sql: "INSERT INTO service_jobs (project_id, type, description, scheduled_date, status, technician_name, created_at) VALUES (?,?,?,?,?,?,?)", args: [pid, "maintenance", "Annual panel cleaning and inspection", "2026-04-15", "scheduled", "Engr. Santos", new Date().toISOString()] });
-        await client.execute({ sql: "INSERT INTO service_jobs (project_id, type, description, status, created_at) VALUES (?,?,?,?,?)", args: [pid, "warranty", "Inverter display showing error code E04", "open", new Date().toISOString()] });
-      }
-    }
-
+    await client.execute({ sql: "INSERT INTO tenants (name, subdomain, primary_color, plan_tier, owner_email, active_projects, created_at) VALUES (?,?,?,?,?,?,?)", args: ["SolarPH Contractors", "solarph", "#fbbf24", "enterprise", "admin@solarph.com", 12, new Date().toISOString()] });
+    await client.execute({ sql: "INSERT INTO tenants (name, subdomain, primary_color, plan_tier, owner_email, active_projects, created_at) VALUES (?,?,?,?,?,?,?)", args: ["SunPower Cebu", "suncebu", "#22d3ee", "pro", "ops@suncebu.com", 5, new Date().toISOString()] });
+    
     // Seed Employees
-    const empRes = await client.execute("SELECT COUNT(*) as c FROM employees");
-    if (Number(empRes.rows[0].c) === 0) {
-      await client.execute({ sql: "INSERT INTO employees (name, role, email, phone, daily_rate, employment_type, status, hired_date, created_at) VALUES (?,?,?,?,?,?,?,?,?)", args: ["Engr. Ramon Santos", "supervisor", "rsantos@solarph.com", "09171112222", 2500, "full-time", "active", "2024-01-15", new Date().toISOString()] });
-      await client.execute({ sql: "INSERT INTO employees (name, role, email, phone, daily_rate, employment_type, status, hired_date, created_at) VALUES (?,?,?,?,?,?,?,?,?)", args: ["Alex Reyes", "installer", "areyes@solarph.com", "09181113333", 1200, "full-time", "active", "2024-03-01", new Date().toISOString()] });
-      await client.execute({ sql: "INSERT INTO employees (name, role, email, phone, daily_rate, employment_type, status, hired_date, created_at) VALUES (?,?,?,?,?,?,?,?,?)", args: ["Maria Lorenzo", "sales", "mlorenzo@solarph.com", "09191114444", 1800, "full-time", "active", "2024-06-10", new Date().toISOString()] });
-      await client.execute({ sql: "INSERT INTO employees (name, role, email, phone, daily_rate, employment_type, status, hired_date, created_at) VALUES (?,?,?,?,?,?,?,?,?)", args: ["Jun Bautista", "installer", null, "09208884444", 900, "contractor", "active", "2025-01-01", new Date().toISOString()] });
-    }
-
-    // Seed Chart of Accounts
-    const coaRes = await client.execute("SELECT COUNT(*) as c FROM chart_of_accounts");
-    if (Number(coaRes.rows[0].c) === 0) {
-      const accounts = [
-        ["1000", "Cash & Bank", "asset", 850000],
-        ["1100", "Accounts Receivable", "asset", 320000],
-        ["1200", "Inventory Assets", "asset", 540000],
-        ["2000", "Accounts Payable", "liability", 180000],
-        ["3000", "Owner Equity", "equity", 1200000],
-        ["4000", "Project Revenue", "revenue", 2400000],
-        ["4100", "Service Revenue", "revenue", 120000],
-        ["5000", "Cost of Materials", "expense", 980000],
-        ["5100", "Labor & Payroll", "expense", 310000],
-        ["5200", "Permits & Compliance", "expense", 45000],
-        ["5300", "Logistics & Transport", "expense", 68000],
-      ];
-      for (const [code, name, type, balance] of accounts) {
-        await client.execute({ sql: "INSERT INTO chart_of_accounts (code, name, type, balance) VALUES (?,?,?,?)", args: [code, name, type, balance] });
-      }
-    }
-
-    // Seed Compliance Items
-    const compRes = await client.execute("SELECT COUNT(*) as c FROM compliance_items");
-    if (Number(compRes.rows[0].c) === 0) {
-      await client.execute({ sql: "INSERT INTO compliance_items (title, category, due_date, status, created_at) VALUES (?,?,?,?,?)", args: ["PCAB License Renewal", "pcab", "2026-06-30", "pending", new Date().toISOString()] });
-      await client.execute({ sql: "INSERT INTO compliance_items (title, category, due_date, status, created_at) VALUES (?,?,?,?,?)", args: ["BIR Annual Registration", "bir", "2026-01-31", "completed", new Date().toISOString()] });
-      await client.execute({ sql: "INSERT INTO compliance_items (title, category, due_date, status, created_at) VALUES (?,?,?,?,?)", args: ["Contractor Liability Insurance", "insurance", "2026-09-15", "pending", new Date().toISOString()] });
-      await client.execute({ sql: "INSERT INTO compliance_items (title, category, due_date, status, created_at) VALUES (?,?,?,?,?)", args: ["ERC Registration Update", "license", "2026-04-30", "pending", new Date().toISOString()] });
-    }
-
+    await client.execute({ sql: "INSERT INTO employees (name, role, email, phone, daily_rate, employment_type, status, hired_date, created_at) VALUES (?,?,?,?,?,?,?,?,?)", args: ["Engr. Ramon Santos", "supervisor", "rsantos@solarph.com", "09171112222", 2500, "full-time", "active", "2024-01-15", new Date().toISOString()] });
+    
     // Seed BOM Template
-    const bomRes = await client.execute("SELECT COUNT(*) as c FROM bom_templates");
-    if (Number(bomRes.rows[0].c) === 0) {
-      const items8kw = JSON.stringify([
-        { item: "Solar Panel 400W Mono", qty: 20, unit: "pcs", unitCost: 8500 },
-        { item: "Hybrid Inverter 10kW", qty: 1, unit: "unit", unitCost: 45000 },
-        { item: "Mounting Rails (4m)", qty: 12, unit: "pcs", unitCost: 2200 },
-        { item: "DC Cables (6mm²)", qty: 50, unit: "m", unitCost: 120 },
-        { item: "AC Breaker 40A", qty: 2, unit: "pcs", unitCost: 1800 },
-        { item: "Junction Box", qty: 3, unit: "pcs", unitCost: 600 },
-      ]);
-      await client.execute({ sql: "INSERT INTO bom_templates (name, system_kw, items, total_cost, created_at) VALUES (?,?,?,?,?)", args: ["8 kWp Grid-Tied Residential", 8, items8kw, 229600, new Date().toISOString()] });
-    }
+    const items8kw = JSON.stringify([
+      { item: "Solar Panel 400W Mono", qty: 20, unit: "pcs", unitCost: 8500 },
+      { item: "Hybrid Inverter 10kW", qty: 1, unit: "unit", unitCost: 45000 },
+    ]);
+    await client.execute({ sql: "INSERT INTO bom_templates (name, system_kw, items, total_cost, created_at) VALUES (?,?,?,?,?)", args: ["8 kWp Grid-Tied Residential", 8, items8kw, 229600, new Date().toISOString()] });
   }
 }
 
-// Exported for startup above at line 10
+async function initDb() {
+  await client.execute(`CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, client_name TEXT NOT NULL, client_email TEXT, client_phone TEXT, address TEXT NOT NULL, system_kw REAL NOT NULL DEFAULT 6, panel_count INTEGER NOT NULL DEFAULT 15, contract_value REAL NOT NULL DEFAULT 0, share_token TEXT NOT NULL, start_date TEXT, estimated_end_date TEXT, notes TEXT, contractor_notes TEXT, status TEXT NOT NULL DEFAULT 'survey', overall_progress INTEGER NOT NULL DEFAULT 0, roi_projected_years INTEGER DEFAULT 5, annual_savings INTEGER DEFAULT 0, total_lifetime_savings INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT '', client_portal_pin TEXT, tenant_id INTEGER DEFAULT 1, scheduled_start TEXT, scheduled_end TEXT)`);
+  
+  await client.execute(`CREATE TABLE IF NOT EXISTS milestones (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, description TEXT, phase TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', completed_at TEXT, sort_order INTEGER NOT NULL DEFAULT 0, photo TEXT, note TEXT)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS updates (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, message TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'update', posted_by TEXT NOT NULL DEFAULT 'Contractor', created_at TEXT NOT NULL DEFAULT '', is_read INTEGER NOT NULL DEFAULT 0)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS faqs (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT NOT NULL, answer TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'general', sort_order INTEGER NOT NULL DEFAULT 0, published INTEGER NOT NULL DEFAULT 1)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS testimonials (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, location TEXT, role TEXT NOT NULL DEFAULT 'Homeowner', quote TEXT NOT NULL, rating INTEGER NOT NULL DEFAULT 5, system_size TEXT, published INTEGER NOT NULL DEFAULT 1, avatar_initials TEXT, created_at TEXT NOT NULL DEFAULT '')`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS pricing_plans (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, price REAL NOT NULL, billing_cycle TEXT NOT NULL DEFAULT 'month', description TEXT, features TEXT NOT NULL DEFAULT '[]', highlighted INTEGER NOT NULL DEFAULT 0, cta_label TEXT NOT NULL DEFAULT 'Get Started', sort_order INTEGER NOT NULL DEFAULT 0, published INTEGER NOT NULL DEFAULT 1)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS milestone_photos (id INTEGER PRIMARY KEY AUTOINCREMENT, milestone_id INTEGER NOT NULL, project_id INTEGER NOT NULL, data_url TEXT NOT NULL, caption TEXT, photo_type TEXT NOT NULL DEFAULT 'progress', created_at TEXT NOT NULL DEFAULT '')`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS signatures (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, signer_name TEXT NOT NULL, signer_role TEXT NOT NULL DEFAULT 'Client', signature_data_url TEXT NOT NULL, signed_at TEXT NOT NULL DEFAULT '', ip_address TEXT, agreement_text TEXT)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS notification_prefs (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, email TEXT, phone TEXT, email_enabled INTEGER NOT NULL DEFAULT 1, sms_enabled INTEGER NOT NULL DEFAULT 0, notify_on_milestone INTEGER NOT NULL DEFAULT 1, notify_on_update INTEGER NOT NULL DEFAULT 1)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS admins (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, password TEXT NOT NULL, name TEXT NOT NULL, email TEXT, google_id TEXT)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS quotations (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, items TEXT NOT NULL DEFAULT '[]', total_amount REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'draft', valid_until TEXT, created_at TEXT NOT NULL DEFAULT '')`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS documents (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'permit', file_url TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'uploaded', uploaded_at TEXT NOT NULL DEFAULT '', requires_signature INTEGER NOT NULL DEFAULT 0)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS payments (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, milestone_id INTEGER, amount REAL NOT NULL, status TEXT NOT NULL DEFAULT 'pending', payment_method TEXT, transaction_id TEXT, paid_at TEXT, created_at TEXT NOT NULL DEFAULT '')`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS designs (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, panel_capacity_kw REAL NOT NULL, panels JSON NOT NULL DEFAULT '[]', annual_yield_kwh REAL NOT NULL, status TEXT NOT NULL DEFAULT 'draft', created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'panels', quantity INTEGER NOT NULL DEFAULT 0, unit TEXT NOT NULL DEFAULT 'pcs', min_threshold INTEGER NOT NULL DEFAULT 5, updated_at TEXT NOT NULL DEFAULT '', warehouse_location TEXT DEFAULT 'A1-W1')`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS leads (id INTEGER PRIMARY KEY AUTOINCREMENT, client_name TEXT NOT NULL, client_email TEXT, client_phone TEXT, address TEXT NOT NULL, source TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'new', notes TEXT, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS referrals (id INTEGER PRIMARY KEY AUTOINCREMENT, referrer_project_id INTEGER NOT NULL, referred_name TEXT NOT NULL, referred_email TEXT, commission_amount INTEGER DEFAULT 0, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS vendors (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, category TEXT NOT NULL, contact_person TEXT, contact_phone TEXT, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS purchase_orders (id INTEGER PRIMARY KEY AUTOINCREMENT, vendor_id INTEGER NOT NULL, po_number TEXT NOT NULL, total_amount REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'draft', items_json TEXT NOT NULL DEFAULT '[]', delivery_expected TEXT, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS crews (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, location TEXT NOT NULL, contact_number TEXT, status TEXT NOT NULL DEFAULT 'idle', current_project_id INTEGER, last_weather_risk TEXT)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS proposals (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, template_style TEXT NOT NULL DEFAULT 'modern', include_roi INTEGER NOT NULL DEFAULT 1, include_financing INTEGER NOT NULL DEFAULT 1, status TEXT NOT NULL DEFAULT 'draft', notes TEXT, created_at TEXT NOT NULL, is_published INTEGER DEFAULT 0, total_value REAL DEFAULT 0, snapshot_json TEXT)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS service_jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, type TEXT NOT NULL DEFAULT 'maintenance', description TEXT NOT NULL, scheduled_date TEXT, resolved_date TEXT, status TEXT NOT NULL DEFAULT 'open', technician_name TEXT, notes TEXT, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS client_messages (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, sender TEXT NOT NULL DEFAULT 'client', message TEXT NOT NULL, is_read INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS tenants (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, subdomain TEXT NOT NULL, logo_url TEXT, primary_color TEXT NOT NULL DEFAULT '#fbbf24', plan_tier TEXT NOT NULL DEFAULT 'starter', owner_email TEXT, active_projects INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS employees (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'installer', email TEXT, phone TEXT, daily_rate REAL DEFAULT 0, employment_type TEXT NOT NULL DEFAULT 'full-time', status TEXT NOT NULL DEFAULT 'active', hired_date TEXT, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS timesheets (id INTEGER PRIMARY KEY AUTOINCREMENT, employee_id INTEGER NOT NULL, project_id INTEGER, date TEXT NOT NULL, hours_worked REAL NOT NULL DEFAULT 8, task_description TEXT, status TEXT NOT NULL DEFAULT 'pending', created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS chart_of_accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT NOT NULL, name TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'expense', balance REAL NOT NULL DEFAULT 0)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS journal_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NOT NULL, debit_account_id INTEGER NOT NULL, credit_account_id INTEGER NOT NULL, amount REAL NOT NULL, reference TEXT, type TEXT NOT NULL DEFAULT 'general', date TEXT NOT NULL, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS compliance_items (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, category TEXT NOT NULL DEFAULT 'permit', due_date TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', notes TEXT, project_id INTEGER, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS bom_templates (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, system_kw REAL NOT NULL, items TEXT NOT NULL DEFAULT '[]', total_cost REAL NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS stock_transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, inventory_id INTEGER NOT NULL, type TEXT NOT NULL, quantity REAL NOT NULL, reference TEXT, created_at TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS schedules (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL, resource_id INTEGER)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, message TEXT NOT NULL, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL)`);
 
+  // Migrations for existing tables
+  try { await client.execute("ALTER TABLE projects ADD COLUMN roi_projected_years INTEGER DEFAULT 5"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN annual_savings INTEGER DEFAULT 0"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN total_lifetime_savings INTEGER DEFAULT 0"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN client_portal_pin TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN tenant_id INTEGER DEFAULT 1"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN scheduled_start TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN scheduled_end TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE admins ADD COLUMN email TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE admins ADD COLUMN google_id TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE inventory ADD COLUMN warehouse_location TEXT DEFAULT 'A1-W1'"); } catch(e){}
+  try { await client.execute("ALTER TABLE proposals ADD COLUMN is_published INTEGER DEFAULT 0"); } catch(e){}
+  try { await client.execute("ALTER TABLE proposals ADD COLUMN total_value REAL DEFAULT 0"); } catch(e){}
+  try { await client.execute("ALTER TABLE proposals ADD COLUMN snapshot_json TEXT"); } catch(e){}
 
+  await seedAll();
+}
+
+export { initDb, seedAll };
 
 export class Storage {
   // Projects

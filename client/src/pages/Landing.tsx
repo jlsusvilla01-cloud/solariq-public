@@ -87,11 +87,9 @@ function Hero() {
           <button onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })} className="bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold px-8 py-4 rounded-xl text-base hover:brightness-110 transition-all solar-glow flex items-center gap-2">
             Start Free Trial <ArrowRight size={18} />
           </button>
-          <Link href="/track/demo-abc123">
-            <a className="border border-white/20 text-white/80 hover:text-white hover:border-white/40 px-8 py-4 rounded-xl text-base transition-all flex items-center gap-2">
-              See Live Demo <Zap size={16} />
-            </a>
-          </Link>
+          <a href="#/track/demo-abc123" className="border border-white/20 text-white/80 hover:text-white hover:border-white/40 px-8 py-4 rounded-xl text-base transition-all flex items-center gap-2">
+            See Live Demo <Zap size={16} />
+          </a>
         </div>
 
         {/* Social proof */}
