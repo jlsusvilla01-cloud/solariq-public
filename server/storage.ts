@@ -4,8 +4,9 @@ import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins
 import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading, SiteSurvey, InsertSiteSurvey } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 
+const isVercel = process.env.VERCEL === "1" || !!process.env.VERCEL;
 const client = createClient({ 
-  url: process.env.DATABASE_URL || "file:solariq_v3.db",
+  url: process.env.DATABASE_URL || (isVercel ? ":memory:" : "file:solariq_v3.db"),
   authToken: process.env.DATABASE_AUTH_TOKEN
 });
 export const db = drizzle(client);

@@ -61,14 +61,13 @@ app.use((req, res, next) => {
 
 import { initDb } from "./storage";
 
-(async () => {
+const initPromise = (async () => {
   try {
     log("Initializing database...", "startup");
     await initDb();
     log("Database initialized successfully", "startup");
   } catch (err) {
     console.error("FATAL: Database initialization failed:", err);
-    // Continue for now to allow emergency endpoints or better error pages to serve
   }
   
   await registerRoutes(httpServer, app);
@@ -86,19 +85,15 @@ import { initDb } from "./storage";
     return res.status(status).json({ message });
   });
 
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
   } else {
-    const { setupVite } = await import("./vite");
+    const { setupVite } = await import("./vite.js");
     await setupVite(httpServer, app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  const port = parseInt(process.env.PORT || "5000", 10);
   if (!process.env.VERCEL) {
+    const port = parseInt(process.env.PORT || "5000", 10);
     httpServer.listen(
       {
         port,
@@ -111,4 +106,8 @@ import { initDb } from "./storage";
   }
 })();
 
-export default app;
+// For Vercel, we export a wrapper that ensures init is complete
+export default async (req: any, res: any) => {
+  await initPromise;
+  return app(req, res);
+};
