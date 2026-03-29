@@ -17,13 +17,13 @@ async function initDb() {
   if (useMock) {
     console.log("Initializing In-Memory Storage (Vercel Fallback)");
     storage = new MemStorage();
-    // In mock mode, db and client remain undefined or could be mocked if needed
+    // In mock mode, db and client remain undefined
   } else {
     console.log("Initializing LibSQL Storage");
     try {
-      // Obfuscating the path to prevent Vercel NFT/esbuild from static tracing
-      const lp = "./libsql-storage.js";
-      const { LibSQLStorage, getLibSQLDb } = await import(lp);
+      // The nuclear option: eval('import(...)') hides the import from Vercel's NFT/esbuild tracer entirely
+      const module = await eval('import("./libsql-storage.js")');
+      const { LibSQLStorage, getLibSQLDb } = module;
       storage = new LibSQLStorage();
       const libs = getLibSQLDb();
       db = libs.db;
