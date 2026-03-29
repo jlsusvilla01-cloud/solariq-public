@@ -63,6 +63,14 @@ async function sendNotificationEmail(to: string, clientName: string, projectName
 }
 
 export async function registerRoutes(httpServer: Server, app: Express) {
+  // ── Health Check (for Vercel debugging) ──
+  app.get("/api/health", (_req, res) => res.json({ 
+    status: "ok", 
+    uptime: process.uptime(),
+    env: process.env.NODE_ENV,
+    isVercel: !!process.env.VERCEL
+  }));
+
   // ── Public: Landing data ──
   app.get("/api/public/faqs", async (_req, res) => res.json(await storage.getPublishedFaqs()));
   app.get("/api/public/testimonials", async (_req, res) => res.json(await storage.getPublishedTestimonials()));
