@@ -1,2 +1,2 @@
-import handler from "../server/index.ts";
+import handler from "../server/index.js";
 export default handler;
