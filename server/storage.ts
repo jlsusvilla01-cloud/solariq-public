@@ -21,8 +21,9 @@ async function initDb() {
   } else {
     console.log("Initializing LibSQL Storage");
     try {
-      // Dynamic import prevents the native @libsql/client from being bundled/loaded on Vercel
-      const { LibSQLStorage, getLibSQLDb } = await import("./libsql-storage.js");
+      // Obfuscating the path to prevent Vercel NFT/esbuild from static tracing
+      const lp = "./libsql-storage.js";
+      const { LibSQLStorage, getLibSQLDb } = await import(lp);
       storage = new LibSQLStorage();
       const libs = getLibSQLDb();
       db = libs.db;

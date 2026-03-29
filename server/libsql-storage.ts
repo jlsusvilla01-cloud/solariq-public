@@ -2,7 +2,7 @@ import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins
 import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading, SiteSurvey, InsertSiteSurvey } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
-import { createClient } from "@libsql/client";
+import { createClient } from "@libsql/client/web";
 import { IStorage } from "./storage-interface.js";
 
 let db: any;
@@ -260,7 +260,7 @@ export class LibSQLStorage implements IStorage {
   // Feature 3: Client Portal Auth
   async getProjectByTokenAndPin(token: string, pin: string) {
     const res = await db.select().from(projects).all();
-    return res.find(p => p.shareToken === token && p.clientPortalPin === pin) || null;
+    return (res as any[]).find((p: any) => p.shareToken === token && p.clientPortalPin === pin) || null;
   }
   async setClientPortalPin(projectId: number, pin: string) {
     await db.update(projects).set({ clientPortalPin: pin }).where(eq(projects.id, projectId));

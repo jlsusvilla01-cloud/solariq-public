@@ -59,13 +59,17 @@ export class MemStorage implements IStorage {
   private stockTransactions = new Map<number, StockTransaction>();
   private schedules = new Map<number, Schedule>();
   private notifications = new Map<number, Notification>();
+  private designs = new Map<number, Design>();
+  private leads = new Map<number, Lead>();
+  private serviceJobs = new Map<number, ServiceJob>();
+  private clientMessages = new Map<number, ClientMessage>();
 
   private currentIds: Record<string, number> = {
     projects: 1, milestones: 1, updates: 1, faqs: 1, testimonials: 1, pricing: 1,
     photos: 1, signatures: 1, notifs: 1, admins: 1, readings: 1, surveys: 1,
     quotations: 1, documents: 1, payments: 1, inventory: 1, crews: 1, tenants: 1,
     employees: 1, timesheets: 1, journals: 1, compliance: 1, bom: 1, stocks: 1,
-    schedules: 1, notifications: 1
+    schedules: 1, notifications: 1, designs: 1, leads: 1, serviceJobs: 1, clientMessages: 1
   };
 
   constructor() {
@@ -252,16 +256,16 @@ export class MemStorage implements IStorage {
   async createPayment(data: any) { const id = this.currentIds.payments++; const p = {...data, id}; this.payments.set(id, p); return p; }
   async updatePayment(id: number, data: any) { const p = this.payments.get(id); const u = {...p, ...data}; this.payments.set(id, u); return u; }
 
-  async getAllInventory() { return Array.from(this.inventory.values()); }
-  async updateInventory(id: number, data: any) { const i = this.inventory.get(id); const u = {...i, ...data}; this.inventory.set(id, u); return u; }
+  async getAllInventory() { return Array.from(this.inventory.values()) as any[]; }
+  async updateInventory(id: number, data: any) { const i = this.inventory.get(id); const u = {...i, ...data}; this.inventory.set(id, u); return u as any; }
 
-  async getAllDesigns() { return Array.from(this.designs.values()); }
-  async getDesignsByProject(pid: number) { return Array.from(this.designs.values()).filter(d => d.projectId === pid); }
-  async createDesign(data: any) { const id = this.currentIds.designs++; const d = {...data, id}; this.designs.set(id, d); return d; }
+  async getAllDesigns() { return Array.from(this.designs.values()) as any[]; }
+  async getDesignsByProject(pid: number) { return Array.from(this.designs.values()).filter(d => (d as any).projectId === pid) as any[]; }
+  async createDesign(data: any) { const id = this.currentIds.designs++; const d = {...data, id}; this.designs.set(id, d); return d as any; }
 
-  async getAllLeads() { return Array.from(this.leads.values()); }
-  async createLead(data: any) { const id = this.currentIds.leads++; const l = {...data, id}; this.leads.set(id, l); return l; }
-  async updateLead(id: number, data: any) { const l = this.leads.get(id); const u = {...l, ...data}; this.leads.set(id, u); return u; }
+  async getAllLeads() { return Array.from(this.leads.values()) as any[]; }
+  async createLead(data: any) { const id = this.currentIds.leads++; const l = {...data, id}; this.leads.set(id, l); return l as any; }
+  async updateLead(id: number, data: any) { const l = this.leads.get(id); const u = {...l, ...data}; this.leads.set(id, u); return u as any; }
 
   async getAllReferrals() { return []; }
   async getReferralsByProject(pid: number) { return []; }
@@ -275,13 +279,13 @@ export class MemStorage implements IStorage {
   async createProposal(data: any) { return {} as any; }
   async updateProposal(id: number, data: any) { return {} as any; }
 
-  async getAllServiceJobs() { return Array.from(this.serviceJobs.values()); }
-  async getServiceJobsByProject(pid: number) { return Array.from(this.serviceJobs.values()).filter(j => j.projectId === pid); }
-  async createServiceJob(data: any) { const id = this.currentIds.serviceJobs++; const j = {...data, id}; this.serviceJobs.set(id, j); return j; }
-  async updateServiceJob(id: number, data: any) { const j = this.serviceJobs.get(id); const u = {...j, ...data}; this.serviceJobs.set(id, u); return u; }
+  async getAllServiceJobs() { return Array.from(this.serviceJobs.values()) as any[]; }
+  async getServiceJobsByProject(pid: number) { return Array.from(this.serviceJobs.values()).filter(j => (j as any).projectId === pid) as any[]; }
+  async createServiceJob(data: any) { const id = this.currentIds.serviceJobs++; const j = {...data, id}; this.serviceJobs.set(id, j); return j as any; }
+  async updateServiceJob(id: number, data: any) { const j = this.serviceJobs.get(id); const u = {...j, ...data}; this.serviceJobs.set(id, u); return u as any; }
 
-  async getClientMessages(pid: number) { return Array.from(this.clientMessages.values()).filter(m => m.projectId === pid); }
-  async createClientMessage(data: any) { const id = this.currentIds.clientMessages++; const m = {...data, id}; this.clientMessages.set(id, m); return m; }
+  async getClientMessages(pid: number) { return Array.from(this.clientMessages.values()).filter(m => (m as any).projectId === pid) as any[]; }
+  async createClientMessage(data: any) { const id = this.currentIds.clientMessages++; const m = {...data, id}; this.clientMessages.set(id, m); return m as any; }
 
   async getProjectByTokenAndPin(token: string, pin: string) { return Array.from(this.projects.values()).find(p => p.shareToken === token && p.clientPortalPin === pin) || null; }
   async setClientPortalPin(projectId: number, pin: string) { const p = this.projects.get(projectId); if (p) p.clientPortalPin = pin; }
