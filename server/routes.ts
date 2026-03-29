@@ -68,7 +68,10 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     status: "ok", 
     uptime: process.uptime(),
     env: process.env.NODE_ENV,
-    isVercel: !!process.env.VERCEL
+    isVercel: !!process.env.VERCEL,
+    storage: storage.constructor.name,
+    memory: process.memoryUsage(),
+    node: process.version
   }));
 
   // ── Public: Landing data ──

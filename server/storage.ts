@@ -1,15 +1,29 @@
-import { drizzle } from "drizzle-orm/libsql";
-import { createClient } from "@libsql/client";
 import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications, solarReadings, siteSurveys } from "@shared/schema";
 import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading, SiteSurvey, InsertSiteSurvey } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/libsql";
+import { createClient } from "@libsql/client";
+import { IStorage } from "./storage-interface.js";
+import { MemStorage } from "./mem-storage.js";
 
 const isVercel = process.env.VERCEL === "1" || !!process.env.VERCEL;
-const client = createClient({ 
-  url: process.env.DATABASE_URL || (isVercel ? ":memory:" : "file:solariq_v3.db"),
-  authToken: process.env.DATABASE_AUTH_TOKEN
-});
-export const db = drizzle(client);
+const useMock = isVercel && !process.env.DATABASE_URL;
+
+let storage: IStorage;
+let db: any;
+let client: any;
+
+if (useMock) {
+  console.log("Using Mock Storage (In-memory fallback for Vercel)");
+  storage = new MemStorage();
+} else {
+  client = createClient({ 
+    url: process.env.DATABASE_URL || (isVercel ? ":memory:" : "file:solariq_v3.db"),
+    authToken: process.env.DATABASE_AUTH_TOKEN
+  });
+  db = drizzle(client);
+  // We'll define LibSQLStorage later and assign it to storage
+}
 
 async function seedAll() {
   // Seed admins
@@ -142,6 +156,7 @@ async function seedAll() {
 }
 
 async function initDb() {
+  if (useMock) return;
   await client.execute(`CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, client_name TEXT NOT NULL, client_email TEXT, client_phone TEXT, address TEXT NOT NULL, system_kw REAL NOT NULL DEFAULT 6, panel_count INTEGER NOT NULL DEFAULT 15, contract_value REAL NOT NULL DEFAULT 0, share_token TEXT NOT NULL, start_date TEXT, estimated_end_date TEXT, notes TEXT, contractor_notes TEXT, status TEXT NOT NULL DEFAULT 'survey', overall_progress INTEGER NOT NULL DEFAULT 0, roi_projected_years INTEGER DEFAULT 5, annual_savings INTEGER DEFAULT 0, total_lifetime_savings INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT '', client_portal_pin TEXT, tenant_id INTEGER DEFAULT 1, scheduled_start TEXT, scheduled_end TEXT, inverter_model TEXT, inverter_serial TEXT, monitoring_status TEXT DEFAULT 'offline', last_weather_risk TEXT DEFAULT 'low', weather_alert TEXT, net_metering_status TEXT DEFAULT 'pending', net_metering_notes TEXT)`);
   
   await client.execute(`CREATE TABLE IF NOT EXISTS milestones (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, description TEXT, phase TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', completed_at TEXT, sort_order INTEGER NOT NULL DEFAULT 0, photo TEXT, note TEXT)`);
@@ -190,27 +205,18 @@ async function initDb() {
   try { await client.execute("ALTER TABLE projects ADD COLUMN weather_alert TEXT"); } catch(e){}
   try { await client.execute("ALTER TABLE projects ADD COLUMN net_metering_status TEXT DEFAULT 'pending'"); } catch(e){}
   try { await client.execute("ALTER TABLE projects ADD COLUMN net_metering_notes TEXT"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN total_lifetime_savings INTEGER DEFAULT 0"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN client_portal_pin TEXT"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN tenant_id INTEGER DEFAULT 1"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN scheduled_start TEXT"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN scheduled_end TEXT"); } catch(e){}
   try { await client.execute("ALTER TABLE admins ADD COLUMN email TEXT"); } catch(e){}
   try { await client.execute("ALTER TABLE admins ADD COLUMN google_id TEXT"); } catch(e){}
   try { await client.execute("ALTER TABLE inventory ADD COLUMN warehouse_location TEXT DEFAULT 'A1-W1'"); } catch(e){}
   try { await client.execute("ALTER TABLE proposals ADD COLUMN is_published INTEGER DEFAULT 0"); } catch(e){}
   try { await client.execute("ALTER TABLE proposals ADD COLUMN total_value REAL DEFAULT 0"); } catch(e){}
   try { await client.execute("ALTER TABLE proposals ADD COLUMN snapshot_json TEXT"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN inverter_model TEXT"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN inverter_serial TEXT"); } catch(e){}
-  try { await client.execute("ALTER TABLE projects ADD COLUMN monitoring_status TEXT DEFAULT 'offline'"); } catch(e){}
 
   await seedAll();
 }
 
-export { initDb, seedAll };
 
-export class Storage {
+export class LibSQLStorage implements IStorage {
   // Projects
   async getAllProjects() { return await db.select().from(projects).all(); }
   async getProject(id: number) { 
@@ -650,4 +656,8 @@ export class Storage {
   }
 }
 
-export const storage = new Storage();
+if (!useMock) {
+  storage = new LibSQLStorage();
+}
+
+export { storage, db, client, initDb, seedAll };
