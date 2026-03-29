@@ -61,53 +61,38 @@ app.use((req, res, next) => {
 
 import { initDb } from "./storage";
 
-const initPromise = (async () => {
-  try {
-    log("Initializing database...", "startup");
-    await initDb();
-    log("Database initialized successfully", "startup");
-  } catch (err) {
-    console.error("FATAL: Database initialization failed:", err);
-  }
-  
-  await registerRoutes(httpServer, app);
+// Initialization using Top-Level Await (supported in ESM on Node 18+)
+try {
+  log("Initializing database...", "startup");
+  await initDb();
+  log("Database initialized successfully", "startup");
+} catch (err) {
+  console.error("FATAL: Database initialization failed:", err);
+}
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+await registerRoutes(httpServer, app);
 
-    console.error("Internal Server Error:", err);
+app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  const status = err.status || err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
+  console.error("Internal Server Error:", err);
+  if (res.headersSent) return next(err);
+  return res.status(status).json({ message });
+});
 
-    if (res.headersSent) {
-      return next(err);
-    }
+if (process.env.NODE_ENV === "production") {
+  serveStatic(app);
+} else {
+  const { setupVite } = await import("./vite.js");
+  await setupVite(httpServer, app);
+}
 
-    return res.status(status).json({ message });
+if (!process.env.VERCEL) {
+  const port = parseInt(process.env.PORT || "5000", 10);
+  httpServer.listen({ port, host: "0.0.0.0" }, () => {
+    log(`serving on port ${port}`);
   });
+}
 
-  if (process.env.NODE_ENV === "production") {
-    serveStatic(app);
-  } else {
-    const { setupVite } = await import("./vite.js");
-    await setupVite(httpServer, app);
-  }
-
-  if (!process.env.VERCEL) {
-    const port = parseInt(process.env.PORT || "5000", 10);
-    httpServer.listen(
-      {
-        port,
-        host: "0.0.0.0",
-      },
-      () => {
-        log(`serving on port ${port}`);
-      },
-    );
-  }
-})();
-
-// For Vercel, we export a wrapper that ensures init is complete
-export default async (req: any, res: any) => {
-  await initPromise;
-  return app(req, res);
-};
+// Export the app directly. Vercel's Node runtime (ESM) will wait for top-level await.
+export default app;

@@ -1,2 +1,2 @@
-import app from "../server/index.js";
-export default app;
+import handler from "../server/index.ts";
+export default handler;
