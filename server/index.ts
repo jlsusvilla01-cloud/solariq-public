@@ -1,6 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { serveStatic } from "./static";
+import { registerRoutes } from "./routes.js";
+import { serveStatic } from "./static.js";
 import { createServer } from "http";
 
 const app = express();
@@ -59,7 +59,7 @@ app.use((req, res, next) => {
   next();
 });
 
-import { initDb } from "./storage";
+import { initDb } from "./storage.js";
 
 // Initialization using Top-Level Await (supported in ESM on Node 18+)
 // On Vercel, we skip heavy initialization if it might hit cold start limits,
