@@ -33,6 +33,12 @@ export const projects = sqliteTable("projects", {
   inverterModel: text("inverter_model"),
   inverterSerial: text("inverter_serial"),
   monitoringStatus: text("monitoring_status").default("offline"), // online, offline, faulted
+  // Weather Risk (NEW)
+  lastWeatherRisk: text("last_weather_risk").default("low"), // low, medium, high
+  weatherAlert: text("weather_alert"), // custom alert message
+  // Net Metering (NEW)
+  netMeteringStatus: text("net_metering_status").default("pending"), // pending, applied, surveyed, nma_signed, meter_installed, completed
+  netMeteringNotes: text("net_metering_notes"),
 });
 
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true });
@@ -505,6 +511,28 @@ export const solarReadings = sqliteTable("solar_readings", {
   energyTotalKwh: real("energy_total_kwh").notNull(),
   timestamp: text("timestamp").notNull(),
 });
+
+// ── NEW: Site Surveys ──
+export const siteSurveys = sqliteTable("site_surveys", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: integer("project_id").notNull(),
+  roofType: text("roof_type").notNull().default("metal"), // metal|tile|asphalt|concrete
+  roofTilt: integer("roof_tilt").default(0),
+  roofAzimuth: integer("roof_azimuth").default(180), // 0-360
+  shadingCondition: text("shading_condition").default("none"), // none|partial|heavy
+  mainBreakerSize: integer("main_breaker_size").default(0),
+  serviceVoltage: text("service_voltage").default("230V"),
+  cableRunEst: integer("cable_run_est").default(0),
+  structuralIntegrity: text("structural_integrity").default("good"),
+  surveyorName: text("surveyor_name"),
+  surveyDate: text("survey_date"),
+  notes: text("notes"),
+  photosJson: text("photos_json").notNull().default("[]"), // Array of {url, label}
+});
+
+export const insertSiteSurveySchema = createInsertSchema(siteSurveys).omit({ id: true });
+export type InsertSiteSurvey = z.infer<typeof insertSiteSurveySchema>;
+export type SiteSurvey = typeof siteSurveys.$inferSelect;
 
 export const insertReadingSchema = createInsertSchema(solarReadings).omit({ id: true });
 export type InsertReading = z.infer<typeof insertReadingSchema>;

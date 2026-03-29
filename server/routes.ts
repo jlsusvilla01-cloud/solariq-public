@@ -91,13 +91,6 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     });
   });
 
-  app.get("/api/track/:token/monitoring", async (req, res) => {
-    const project = await storage.getProjectByToken(req.params.token);
-    if (!project) return res.status(404).json({ error: "Project not found" });
-    const readings = await storage.getReadingsByProject(project.id);
-    res.json({ readings, inverterModel: project.inverterModel, status: project.monitoringStatus });
-  });
-
   // ── Public: QR Code ──
   app.get("/api/qr/:token", async (req, res) => {
     const project = await storage.getProjectByToken(req.params.token);
@@ -255,6 +248,25 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.post("/api/admin/projects/:id/generate-readings", requireAuth, async (req, res) => {
     await storage.generateMockReadings(+req.params.id);
     await storage.updateProject(+req.params.id, { monitoringStatus: "online", inverterModel: "Huawei SUN2000-5KTL-M1", inverterSerial: "SN-"+Math.random().toString(36).slice(2, 10).toUpperCase() });
+    res.json({ ok: true });
+  });
+
+  // ── Admin: Weather Risk ──
+  app.post("/api/admin/weather/sync", requireAuth, async (_req, res) => {
+    const projects = await storage.getAllProjects();
+    const risks = ["low", "medium", "high"];
+    const alerts: Record<string, string> = {
+      high: "CRITICAL: Severe weather alert in region. Structural mounting halted.",
+      medium: "CAUTION: Intermittent rain/wind. Proceed with electrical work only.",
+      low: "NOMINAL: Clear skies. Optimal for all installation phases."
+    };
+    
+    for (const p of projects) {
+        if (p.status !== "commissioned") {
+            const risk = (p.address?.toLowerCase().includes("cebu")) ? "high" : risks[Math.floor(Math.random() * risks.length)];
+            await storage.updateProjectWeather(p.id, risk, alerts[risk]);
+        }
+    }
     res.json({ ok: true });
   });
 
@@ -474,5 +486,56 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.get("/api/admin/notifications", requireAuth, async (_req, res) => res.json(await storage.getAllNotifications()));
   app.post("/api/admin/notifications", requireAuth, async (req, res) => res.status(201).json(await storage.createNotification(req.body)));
   app.patch("/api/admin/notifications/:id/read", requireAuth, async (req, res) => res.json(await storage.markNotificationRead(+req.params.id)));
+
+  // ── IoT Solar Monitoring ──
+  // Public: client tracker monitoring feed
+  app.get("/api/track/:token/monitoring", async (req, res) => {
+    try {
+      const project = await storage.getProjectByToken(req.params.token);
+      if (!project) return res.status(404).json({ error: "Project not found" });
+      const data = await storage.getMonitoringData(project.id);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Admin: configure inverter for a project
+  app.patch("/api/admin/projects/:id/inverter", requireAuth, async (req, res) => {
+    try {
+      const { inverterModel, inverterSerial, monitoringStatus } = req.body;
+      const updated = await storage.updateInverterConfig(
+        +req.params.id,
+        inverterModel || "Huawei SUN2000-8KTL",
+        inverterSerial || "",
+        monitoringStatus || "offline"
+      );
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+  // Admin: generate 24h mock data for a project
+  app.post("/api/admin/projects/:id/monitoring/generate", requireAuth, async (req, res) => {
+    try {
+      const count = await storage.generateMockReadings(+req.params.id);
+      res.json({ ok: true, readingsGenerated: count });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // ── Admin: Site Survey (NEW Phase 2) ──
+  app.get("/api/admin/projects/:id/survey", requireAuth, async (req, res) => {
+    res.json(await storage.getSiteSurveyByProject(+req.params.id));
+  });
+
+  app.post("/api/admin/projects/:id/survey", requireAuth, async (req, res) => {
+    const existing = await storage.getSiteSurveyByProject(+req.params.id);
+    if (existing) {
+      return res.json(await storage.updateSiteSurvey(existing.id, req.body));
+    }
+    res.status(201).json(await storage.createSiteSurvey({ ...req.body, projectId: +req.params.id }));
+  });
 }
 

@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
-import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications, solarReadings } from "@shared/schema";
-import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading } from "@shared/schema";
+import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications, solarReadings, siteSurveys } from "@shared/schema";
+import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading, SiteSurvey, InsertSiteSurvey } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 
 const client = createClient({ 
@@ -56,7 +56,9 @@ async function seedAll() {
 
   // Seed Pricing
   const planRes = await client.execute("SELECT COUNT(*) as c FROM pricing_plans");
-  if (Number(planRes.rows[0].c) === 0) {
+  if (Number(planRes.rows[0].c) !== 6) {
+    console.log("Seeding/Syncing pricing plans...");
+    await client.execute("DELETE FROM pricing_plans"); // Reset to ensure all 6 exist correctly
     const plans = [
       ["Starter",999,"month","Perfect for new solar contractors with a small client base",JSON.stringify(["Up to 5 active projects","Client progress tracker","Basic milestone tracking","Share link for clients","Email support","SolarIQ branding"]),0,"Start Free Trial",1],
       ["Professional",2499,"month","The complete toolkit for growing contractors",JSON.stringify(["Up to 25 active projects","All Starter features","Photo updates per milestone","Change order tracking","Permit & BOM manager","Priority support","Custom branding / white-label","SMS/email client notifications"]),1,"Start Free Trial",2],
@@ -139,7 +141,7 @@ async function seedAll() {
 }
 
 async function initDb() {
-  await client.execute(`CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, client_name TEXT NOT NULL, client_email TEXT, client_phone TEXT, address TEXT NOT NULL, system_kw REAL NOT NULL DEFAULT 6, panel_count INTEGER NOT NULL DEFAULT 15, contract_value REAL NOT NULL DEFAULT 0, share_token TEXT NOT NULL, start_date TEXT, estimated_end_date TEXT, notes TEXT, contractor_notes TEXT, status TEXT NOT NULL DEFAULT 'survey', overall_progress INTEGER NOT NULL DEFAULT 0, roi_projected_years INTEGER DEFAULT 5, annual_savings INTEGER DEFAULT 0, total_lifetime_savings INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT '', client_portal_pin TEXT, tenant_id INTEGER DEFAULT 1, scheduled_start TEXT, scheduled_end TEXT)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS projects (id INTEGER PRIMARY KEY AUTOINCREMENT, client_name TEXT NOT NULL, client_email TEXT, client_phone TEXT, address TEXT NOT NULL, system_kw REAL NOT NULL DEFAULT 6, panel_count INTEGER NOT NULL DEFAULT 15, contract_value REAL NOT NULL DEFAULT 0, share_token TEXT NOT NULL, start_date TEXT, estimated_end_date TEXT, notes TEXT, contractor_notes TEXT, status TEXT NOT NULL DEFAULT 'survey', overall_progress INTEGER NOT NULL DEFAULT 0, roi_projected_years INTEGER DEFAULT 5, annual_savings INTEGER DEFAULT 0, total_lifetime_savings INTEGER DEFAULT 0, created_at TEXT NOT NULL DEFAULT '', client_portal_pin TEXT, tenant_id INTEGER DEFAULT 1, scheduled_start TEXT, scheduled_end TEXT, inverter_model TEXT, inverter_serial TEXT, monitoring_status TEXT DEFAULT 'offline', last_weather_risk TEXT DEFAULT 'low', weather_alert TEXT, net_metering_status TEXT DEFAULT 'pending', net_metering_notes TEXT)`);
   
   await client.execute(`CREATE TABLE IF NOT EXISTS milestones (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, description TEXT, phase TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', completed_at TEXT, sort_order INTEGER NOT NULL DEFAULT 0, photo TEXT, note TEXT)`);
   await client.execute(`CREATE TABLE IF NOT EXISTS updates (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, message TEXT NOT NULL, type TEXT NOT NULL DEFAULT 'update', posted_by TEXT NOT NULL DEFAULT 'Contractor', created_at TEXT NOT NULL DEFAULT '', is_read INTEGER NOT NULL DEFAULT 0)`);
@@ -174,10 +176,19 @@ async function initDb() {
   await client.execute(`CREATE TABLE IF NOT EXISTS schedules (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, title TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL, resource_id INTEGER)`);
   await client.execute(`CREATE TABLE IF NOT EXISTS notifications (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, message TEXT NOT NULL, is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL)`);
   await client.execute(`CREATE TABLE IF NOT EXISTS solar_readings (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, wattage_kw REAL NOT NULL, energy_today_kwh REAL NOT NULL, energy_total_kwh REAL NOT NULL, timestamp TEXT NOT NULL)`);
+  await client.execute(`CREATE TABLE IF NOT EXISTS site_surveys (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, roof_type TEXT NOT NULL DEFAULT 'metal', roof_tilt INTEGER DEFAULT 0, roof_azimuth INTEGER DEFAULT 180, shading_condition TEXT DEFAULT 'none', main_breaker_size INTEGER DEFAULT 0, service_voltage TEXT DEFAULT '230V', cable_run_est INTEGER DEFAULT 0, structural_integrity TEXT DEFAULT 'good', surveyor_name TEXT, survey_date TEXT, notes TEXT, photos_json TEXT NOT NULL DEFAULT '[]')`);
 
   // Migrations for existing tables
   try { await client.execute("ALTER TABLE projects ADD COLUMN roi_projected_years INTEGER DEFAULT 5"); } catch(e){}
   try { await client.execute("ALTER TABLE projects ADD COLUMN annual_savings INTEGER DEFAULT 0"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN total_lifetime_savings INTEGER DEFAULT 0"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN inverter_model TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN inverter_serial TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN monitoring_status TEXT DEFAULT 'offline'"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN last_weather_risk TEXT DEFAULT 'low'"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN weather_alert TEXT"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN net_metering_status TEXT DEFAULT 'pending'"); } catch(e){}
+  try { await client.execute("ALTER TABLE projects ADD COLUMN net_metering_notes TEXT"); } catch(e){}
   try { await client.execute("ALTER TABLE projects ADD COLUMN total_lifetime_savings INTEGER DEFAULT 0"); } catch(e){}
   try { await client.execute("ALTER TABLE projects ADD COLUMN client_portal_pin TEXT"); } catch(e){}
   try { await client.execute("ALTER TABLE projects ADD COLUMN tenant_id INTEGER DEFAULT 1"); } catch(e){}
@@ -546,43 +557,95 @@ export class Storage {
     return res[0];
   }
 
-  // Solar Readings (IoT)
-  async getReadingsByProject(pid: number, limit = 100) { 
-    return await db.select().from(solarReadings)
-      .where(eq(solarReadings.projectId, pid))
-      .orderBy(desc(solarReadings.timestamp))
-      .limit(limit)
-      .all(); 
+  // ── Solar Monitoring (IoT) ──
+  async getMonitoringData(projectId: number) {
+    const project = await db.select().from(projects).where(eq(projects.id, projectId)).get();
+    const readings = await db.select().from(solarReadings)
+      .where(eq(solarReadings.projectId, projectId))
+      .orderBy(solarReadings.timestamp)
+      .limit(96) // 48h of 30-min readings
+      .all();
+    return {
+      readings,
+      inverterModel: project?.inverterModel || "Huawei SUN2000-8KTL",
+      inverterSerial: project?.inverterSerial || "",
+      status: project?.monitoringStatus || "offline",
+    };
   }
-  async createReading(data: InsertReading) { 
+
+  async createReading(data: InsertReading) {
     const res = await db.insert(solarReadings).values(data).returning().all();
     return res[0];
   }
+
   async generateMockReadings(pid: number) {
+    // Clear old readings for this project first
+    await client.execute({ sql: "DELETE FROM solar_readings WHERE project_id = ?", args: [pid] });
+
     const readings: InsertReading[] = [];
     const now = new Date();
-    // Generate 24 hours of data
-    for (let i = 0; i < 24; i++) {
-        const time = new Date(now.getTime() - (23 - i) * 60 * 60 * 1000);
-        const hour = time.getHours();
-        // Solar curve: peak at noon
-        let wattage = 0;
-        if (hour >= 6 && hour <= 18) {
-            wattage = Math.sin((hour - 6) * Math.PI / 12) * 5; // max 5kW
-            wattage += (Math.random() - 0.5); // Add some noise
-            if (wattage < 0) wattage = 0;
-        }
-        readings.push({
-            projectId: pid,
-            wattageKw: Number(wattage.toFixed(2)),
-            energyTodayKwh: Number((wattage * 0.8).toFixed(2)), // mock
-            energyTotalKwh: 1250 + i * 2,
-            timestamp: time.toISOString()
-        });
+    const systemKwResult = await db.select().from(projects).where(eq(projects.id, pid)).get();
+    const peakKw = systemKwResult?.systemKw ?? 6;
+    let runningTodayKwh = 0;
+    const baseTotalKwh = 1200 + Math.random() * 500; // lifetime baseline
+
+    // Generate 48 readings: one every 30 minutes over the past 24 hours
+    for (let i = 0; i < 48; i++) {
+      const time = new Date(now.getTime() - (47 - i) * 30 * 60 * 1000);
+      const hour = time.getHours() + time.getMinutes() / 60;
+      // Solar bell curve: generates power between 6am and 7pm
+      let wattage = 0;
+      if (hour >= 6 && hour <= 19) {
+        const normalized = (hour - 6) / 13; // 0 to 1 over solar day
+        wattage = peakKw * Math.sin(normalized * Math.PI) * (0.85 + Math.random() * 0.3);
+        if (wattage < 0) wattage = 0;
+        // Add weather noise (occasional cloud dips)
+        if (Math.random() < 0.15) wattage *= 0.3 + Math.random() * 0.4;
+      }
+      wattage = Math.max(0, wattage);
+      // Accumulate today's energy in kWh (30-min intervals = 0.5h)
+      runningTodayKwh += wattage * 0.5;
+      readings.push({
+        projectId: pid,
+        wattageKw: Number(wattage.toFixed(2)),
+        energyTodayKwh: Number(runningTodayKwh.toFixed(2)),
+        energyTotalKwh: Number((baseTotalKwh + runningTodayKwh).toFixed(2)),
+        timestamp: time.toISOString(),
+      });
     }
     for (const r of readings) {
-        await this.createReading(r);
+      await this.createReading(r);
     }
+    // Set project status to online
+    await db.update(projects).set({ monitoringStatus: "online" }).where(eq(projects.id, pid));
+    return readings.length;
+  }
+
+  async updateInverterConfig(id: number, model: string, serial: string, status: string) {
+    const res = await db.update(projects)
+      .set({ inverterModel: model, inverterSerial: serial, monitoringStatus: status })
+      .where(eq(projects.id, id))
+      .returning().all();
+    return res[0];
+  }
+
+  async updateProjectWeather(id: number, risk: string, alert?: string) {
+    const res = await db.update(projects).set({ lastWeatherRisk: risk, weatherAlert: alert }).where(eq(projects.id, id)).returning().all();
+    return res[0];
+  }
+
+  // Site Survey
+  async getSiteSurveyByProject(pid: number) {
+    const res = await db.select().from(siteSurveys).where(eq(siteSurveys.projectId, pid)).all();
+    return res[0] || null;
+  }
+  async createSiteSurvey(data: InsertSiteSurvey): Promise<SiteSurvey> {
+    const res = await db.insert(siteSurveys).values(data).returning().all();
+    return res[0];
+  }
+  async updateSiteSurvey(id: number, data: Partial<SiteSurvey>) {
+    const res = await db.update(siteSurveys).set(data).where(eq(siteSurveys.id, id)).returning().all();
+    return res[0];
   }
 }
 

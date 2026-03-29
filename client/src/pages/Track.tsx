@@ -10,103 +10,83 @@ import {
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { motion } from "framer-motion";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 
 // ── Translation dictionary ──
-const T: Record<string, Record<string, string>> = {
-  en: {
-    welcome: "Welcome",
-    overallProgress: "Overall Progress",
-    systemSize: "System Size",
-    panels: "Panels",
-    milestonesDone: "Milestones Done",
-    estCompletion: "Est. Completion",
-    currentlyInProgress: "Currently In Progress",
-    installationMilestones: "Installation Milestones",
-    latestUpdates: "Latest Updates",
-    noUpdates: "No updates yet.",
-    haveAQuestion: "Have a question?",
-    contactContractor: "Contact your installation team directly.",
-    callContractor: "Call Contractor",
-    emailContractor: "Email Contractor",
-    signCertificate: "Sign Commissioning Certificate",
-    signNow: "Sign Certificate",
-    alreadySigned: "Certificate Signed",
-    beforeAfter: "Before & After",
-    photos: "Site Photos",
-    survey: "Survey",
-    complete: "Complete",
-    done: "Done",
-    inProgress: "In Progress",
-    blocked: "Blocked",
-    pending: "Pending",
-    switchToFilipino: "Filipino",
-    switchToEnglish: "English",
-    poweredBy: "Powered by SolarIQ",
-    updatesEvery: "Updates every 30s",
-    financials: "Project Financials",
-    documents: "Document Center",
-    amount: "Amount",
-    status: "Status",
-    date: "Date",
-    viewDocument: "Open Document",
-    noFinancials: "No financial records available yet.",
-    noDocuments: "No project documents available yet.",
-    paymentStatus: "Payment Status",
-    annualSavings: "Annual Savings",
-    roiYears: "ROI Estimate",
-    lifetimeSavings: "25-Year Savings",
-    liveMonitoring: "Live Monitoring",
-    currentPower: "Current Power",
-    dailyYield: "Daily Yield",
-    totalYield: "Lifetime Total",
-    systemHealth: "System Health",
-    generationHistory: "Generation History",
-    environmentalImpact: "Enviro-Impact",
-    treesPlanted: "Trees Equivalent",
-    co2Saved: "CO2 Offset",
-    monitoringOffline: "Monitoring is currently offline.",
-    noData: "No generation data yet.",
-  },
-  tl: {
-    welcome: "Maligayang pagdating",
-    overallProgress: "Kabuuang Progreso",
-    systemSize: "Laki ng Sistema",
-    panels: "Mga Panel",
-    milestonesDone: "Mga Natapos",
-    estCompletion: "Est. Tapusin",
-    currentlyInProgress: "Kasalukuyang Ginagawa",
-    installationMilestones: "Mga Hakbang sa Pag-install",
-    latestUpdates: "Pinakabagong Update",
-    noUpdates: "Wala pang update.",
-    haveAQuestion: "May tanong ka ba?",
-    contactContractor: "Makipag-ugnayan sa iyong koponan ng pag-install.",
-    callContractor: "Tawagan ang Kontratista",
-    emailContractor: "Mag-email sa Kontratista",
-    signCertificate: "Lagdaan ang Sertipiko ng Pagkumpleto",
-    signNow: "Lagdaan",
-    alreadySigned: "Naka-sign na ang Sertipiko",
-    beforeAfter: "Bago at Pagkatapos",
-    photos: "Mga Larawan sa Site",
-    survey: "Survey",
-    complete: "Kumpleto",
-    done: "Tapos",
-    inProgress: "Ginagawa",
-    blocked: "Naharang",
-    pending: "Naghihintay",
-    switchToFilipino: "Filipino",
-    switchToEnglish: "English",
-    poweredBy: "Pinapatakbo ng SolarIQ",
-    updatesEvery: "Ina-update bawat 30s",
-  },
+const T = {
+  welcome: "Welcome",
+  overallProgress: "Overall Progress",
+  systemSize: "System Size",
+  panels: "Panels",
+  milestonesDone: "Milestones Done",
+  estCompletion: "Est. Completion",
+  currentlyInProgress: "Currently In Progress",
+  installationMilestones: "Installation Milestones",
+  latestUpdates: "Latest Updates",
+  noUpdates: "No updates yet.",
+  haveAQuestion: "Have a question?",
+  contactContractor: "Contact your installation team directly.",
+  callContractor: "Call Contractor",
+  emailContractor: "Email Contractor",
+  signCertificate: "Sign Commissioning Certificate",
+  signNow: "Sign Certificate",
+  alreadySigned: "Certificate Signed",
+  beforeAfter: "Before & After",
+  photos: "Site Photos",
+  survey: "Survey",
+  complete: "Complete",
+  done: "Done",
+  inProgress: "In Progress",
+  blocked: "Blocked",
+  pending: "Pending",
+  poweredBy: "Powered by SolarIQ",
+  updatesEvery: "Updates every 30s",
+  financials: "Project Financials",
+  documents: "Document Center",
+  amount: "Amount",
+  status: "Status",
+  date: "Date",
+  viewDocument: "Open Document",
+  noFinancials: "No financial records available yet.",
+  noDocuments: "No project documents available yet.",
+  paymentStatus: "Payment Status",
+  annualSavings: "Annual Savings",
+  roiYears: "ROI Estimate",
+  lifetimeSavings: "25-Year Savings",
+  liveMonitoring: "Live Monitoring",
+  currentPower: "Current Power",
+  dailyYield: "Daily Yield",
+  totalYield: "Lifetime Total",
+  systemHealth: "System Health",
+  generationHistory: "Generation History",
+  environmentalImpact: "Enviro-Impact",
+  treesPlanted: "Trees Equivalent",
+  co2Saved: "CO2 Offset",
+  monitoringOffline: "Monitoring is currently offline.",
+  noData: "No generation data yet.",
+  weatherSafety: "Weather Safety",
+  weatherNominal: "Nominal Conditions",
+  weatherCaution: "Weather Caution",
+  weatherAlert: "Safety Stand-down",
+  weatherNote: "Installation crews monitor local PAGASA alerts to ensure safe rooftop operations.",
 };
 
-const PHASE_LABELS: Record<string, Record<string, string>> = {
-  en: { survey: "Site Survey", design: "System Design", permitting: "Permits", procurement: "Materials", installation: "Installation", inspection: "Inspection", commissioned: "Commissioned" },
-  tl: { survey: "Site Survey", design: "Disenyo", permitting: "Mga Permit", procurement: "Mga Materyales", installation: "Pag-install", inspection: "Inspeksyon", commissioned: "Kumpleto" },
+const PHASE_LABELS: Record<string, string> = {
+  survey: "Site Survey", 
+  design: "System Design", 
+  permitting: "Permits", 
+  procurement: "Materials", 
+  installation: "Installation", 
+  inspection: "Inspection", 
+  commissioned: "Commissioned" 
 };
+
+// Global shorthand for translations
+const t = T;
+const phaseLabels = PHASE_LABELS;
 
 const STATUS_CONFIG = {
   completed: { icon: CheckCircle2, color: "text-green-400", ring: "ring-green-400/30", bg: "bg-green-400/10", border: "border-green-500/20" },
@@ -172,11 +152,11 @@ function BeforeAfterSlider({ before, after }: { before: string; after: string })
 }
 
 // ── E-Signature Canvas ──
-function SignatureCanvas({ onSigned, clientName, lang }: { onSigned: (dataUrl: string) => void; clientName: string; lang: string }) {
+function SignatureCanvas({ onSigned, clientName }: { onSigned: (dataUrl: string) => void; clientName: string }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   const [hasSig, setHasSig] = useState(false);
-  const t = T[lang];
+  const t = T;
 
   const getPos = (e: any, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect();
@@ -232,10 +212,116 @@ function SignatureCanvas({ onSigned, clientName, lang }: { onSigned: (dataUrl: s
   );
 }
 
+// ── Isometric Power Flow (NEW Phase 2) ──
+function SolarFlow({ production, load, isGridExporting }: { production: number, load: number, isGridExporting: boolean }) {
+  const pPct = Math.min(100, (production / 10) * 100); // 10kW max for scale
+  const lPct = Math.min(100, (load / 10) * 100);
+  
+  // Grid net
+  const net = production - load;
+  const isImporting = net < 0;
+  const isExporting = net > 0;
+  const gridFlow = Math.abs(net).toFixed(1);
+
+  return (
+    <div className="relative w-full aspect-[16/9] max-w-2xl mx-auto bg-gradient-to-b from-transparent to-[#fbbf24]/5 rounded-3xl border border-white/5 overflow-hidden">
+      <svg viewBox="0 0 800 450" className="w-full h-full drop-shadow-2xl">
+        <defs>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        {/* ── Ground Platform (Isometric Diamond) ── */}
+        <path d="M400 350 L700 200 L400 50 L100 200 Z" fill="rgba(255,255,255,0.02)" stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+        
+        {/* ── Grid Utility Pole (Right) ── */}
+        <g transform="translate(620, 160)">
+          <line x1="0" y1="0" x2="0" y2="-60" stroke="#4b5563" strokeWidth="3" />
+          <line x1="-15" y1="-50" x2="15" y2="-50" stroke="#4b5563" strokeWidth="3" />
+          <line x1="-15" y1="-40" x2="15" y2="-40" stroke="#4b5563" strokeWidth="3" />
+          <circle cx="0" cy="-65" r="4" fill="#fbbf24" opacity="0.5" />
+          <text y="20" className="text-[14px] font-black fill-white/30 text-center" textAnchor="middle">GRID</text>
+        </g>
+
+        {/* ── Isometric House (Center) ── */}
+        <g transform="translate(400, 230)">
+          {/* Main Box */}
+          <path d="M-60 0 L0 30 L60 0 L60 -80 L0 -110 L-60 -80 Z" fill="#1f2937" stroke="rgba(255,255,255,0.1)" />
+          <path d="M0 30 L60 0 L60 -80 L0 -50 Z" fill="#111827" stroke="rgba(255,255,255,0.1)" /> {/* Side Wall */}
+          {/* Roof Left */}
+          <path d="M-70 -75 L0 -115 L20 -105 L-50 -65 Z" fill="#374151" stroke="rgba(255,255,255,0.2)" />
+          {/* Solar Panels on Roof */}
+          <path d="M-60 -80 L-10 -108 L5 -100 L-45 -72 Z" fill="#fbbf24" stroke="white" strokeWidth="0.5" filter="url(#glow)">
+            <animate attributeName="opacity" values="0.8;1;0.8" dur="3s" repeatCount="indefinite" />
+          </path>
+          {/* Window (Light inside) */}
+          <rect x="-30" y="-40" width="20" height="20" fill={load > 0.5 ? "#fbbf24" : "#111827"} rx="2" style={{ transition: 'fill 0.5s' }} opacity={load > 0.5 ? 0.6 : 0.2} />
+          <text y="50" className="text-[14px] font-black fill-white/30 tracking-widest" textAnchor="middle">MY HOME</text>
+        </g>
+
+        {/* ── Flow Paths ── */}
+        
+        {/* PV -> House Path (Green) */}
+        <path id="pvPath" d="M380 135 L400 160" fill="none" stroke="rgba(34,197,94,0.1)" strokeWidth="4" strokeDasharray="5,5" />
+        {production > 0.1 && (
+          <circle r="3" fill="#22c55e" filter="url(#glow)">
+            <animateMotion dur="2s" repeatCount="indefinite" path="M380 135 L400 160" />
+          </circle>
+        )}
+
+        {/* Grid <-> House Path */}
+        <path id="gridPath" d="M600 160 Q500 180 440 210" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="2" />
+        
+        {/* Exporting (House -> Grid) */}
+        {isExporting && (
+          <circle r="3" fill="#fbbf24" filter="url(#glow)">
+            <animateMotion dur="1.5s" repeatCount="indefinite" path="M440 210 Q500 180 600 160" />
+          </circle>
+        )}
+
+        {/* Importing (Grid -> House) */}
+        {isImporting && (
+          <circle r="3" fill="#ef4444" filter="url(#glow)">
+            <animateMotion dur="1.5s" repeatCount="indefinite" path="M600 160 Q500 180 440 210" />
+          </circle>
+        )}
+
+        {/* Value Labels (Floating) */}
+        <g transform="translate(320, 100)">
+           <rect x="-40" y="-20" width="80" height="24" rx="12" fill="rgba(34,197,94,0.1)" stroke="#22c55e33" />
+           <text className="text-[12px] font-bold fill-[#22c55e]" textAnchor="middle" y="-4">{production.toFixed(1)} kW</text>
+        </g>
+
+        <g transform="translate(680, 140)">
+           <rect x="-40" y="-20" width="80" height="24" rx="12" fill={isExporting ? "rgba(251,191,36,0.1)" : "rgba(239,68,68,0.1)"} stroke={isExporting ? "#fbbf2433" : "#ef444433"} />
+           <text className={`text-[12px] font-bold ${isExporting ? "fill-[#fbbf24]" : "fill-[#ef4444]"}`} textAnchor="middle" y="-4">
+             {isExporting ? "FEEDING" : "USING"} {gridFlow}
+           </text>
+        </g>
+
+        <g transform="translate(500, 320)">
+           <rect x="-40" y="-20" width="80" height="24" rx="12" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.1)" />
+           <text className="text-[12px] font-bold fill-white/60" textAnchor="middle" y="-4">LOAD: {load.toFixed(1)}</text>
+        </g>
+
+      </svg>
+      
+      {/* ── Status Text Overlay ── */}
+      <div className="absolute top-4 left-6 pointer-events-none">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+          <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Live Simulation System</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Photo Gallery ──
-function PhotoGallery({ photos, lang }: { photos: MilestonePhoto[]; lang: string }) {
+function PhotoGallery({ photos }: { photos: MilestonePhoto[] }) {
   const [selected, setSelected] = useState<MilestonePhoto | null>(null);
-  const t = T[lang];
 
   const before = photos.filter(p => p.photoType === "before");
   const after = photos.filter(p => p.photoType === "after");
@@ -287,12 +373,11 @@ function PhotoGallery({ photos, lang }: { photos: MilestonePhoto[]; lang: string
 }
 
 // ── Monitoring Dashboard (NEW) ──
-function MonitoringDashboard({ token, lang }: { token: string; lang: string }) {
-  const t = T[lang];
+function MonitoringDashboard({ token }: { token: string }) {
   const { data, isLoading } = useQuery<{ readings: any[], inverterModel: string, status: string }>({
     queryKey: ["/api/track", token, "monitoring"],
     queryFn: async () => (await fetch(`/api/track/${token}/monitoring`)).json(),
-    refetchInterval: 60000,
+    refetchInterval: 10000,
   });
 
   if (isLoading) return (
@@ -313,6 +398,11 @@ function MonitoringDashboard({ token, lang }: { token: string; lang: string }) {
   const latest = readings[readings.length - 1];
   const isOnline = data.status === "online";
 
+  // Mock load for demo (1.5kW average)
+  const mockLoad = 1.5 + (Math.sin(Date.now() / 10000) * 0.5);
+  const production = latest.wattageKw;
+  const isExporting = production > mockLoad;
+
   // Impacts: 1MWh = ~0.7 tons CO2 = ~35 trees
   const totalMWh = latest.energyTotalKwh / 1000;
   const trees = Math.round(totalMWh * 35);
@@ -320,6 +410,9 @@ function MonitoringDashboard({ token, lang }: { token: string; lang: string }) {
 
   return (
     <div className="space-y-5">
+       {/* ── NEW Isometric Flow Visualization ── */}
+       {isOnline && <SolarFlow production={production} load={mockLoad} isGridExporting={isExporting} />}
+
        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-[hsl(220_20%_12%)] border border-white/5 rounded-2xl p-5 relative overflow-hidden">
             <div className="flex items-center gap-2 mb-3">
@@ -425,13 +518,10 @@ function MonitoringDashboard({ token, lang }: { token: string; lang: string }) {
 export default function TrackPage() {
   const { token } = useParams<{ token: string }>();
   const { toast } = useToast();
-  const [lang, setLang] = useState<"en" | "tl">("en");
   const [showSignModal, setShowSignModal] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [signerName, setSignerName] = useState("");
   const [activeTab, setActiveTab] = useState<"progress" | "monitoring">("progress");
-  const t = T[lang];
-  const phaseLabels = PHASE_LABELS[lang];
 
   const { data, isLoading, error } = useQuery<{
     project: Project;
@@ -464,7 +554,7 @@ export default function TrackPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/track", token] });
       setShowSignModal(false);
-      toast({ title: lang === "tl" ? "Naka-sign na ang sertipiko!" : "Certificate signed successfully!" });
+      toast({ title: "Certificate signed successfully!" });
     },
   });
 
@@ -472,7 +562,7 @@ export default function TrackPage() {
     <div className="min-h-screen bg-[hsl(220_28%_6%)] flex items-center justify-center">
       <div className="text-center">
         <div className="w-12 h-12 border-2 border-[#fbbf24] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-white/50 text-sm">{lang === "tl" ? "Naglo-load..." : "Loading your project..."}</p>
+        <p className="text-white/50 text-sm">Loading your project...</p>
       </div>
     </div>
   );
@@ -510,15 +600,6 @@ export default function TrackPage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-white/30 hidden sm:inline">{t.updatesEvery}</span>
-            {/* Language toggle */}
-            <button
-              onClick={() => setLang(l => l === "en" ? "tl" : "en")}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[hsl(220_18%_22%)] text-xs text-white/60 hover:text-white hover:border-[#fbbf24]/40 transition-colors"
-              title={lang === "en" ? "Switch to Filipino" : "Switch to English"}
-            >
-              <Languages size={12} />
-              {lang === "en" ? "🇵🇭 Filipino" : "🇺🇸 English"}
-            </button>
             {/* QR code */}
             <button
               onClick={() => setShowQR(v => !v)}
@@ -534,12 +615,12 @@ export default function TrackPage() {
       {showQR && qrData && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setShowQR(false)}>
           <div className="bg-[hsl(220_24%_9%)] border border-[hsl(220_18%_18%)] rounded-2xl p-6 text-center max-w-xs w-full" onClick={e => e.stopPropagation()}>
-            <h3 className="font-bold text-white mb-1">{lang === "tl" ? "QR Code ng Tracker" : "Project Tracker QR Code"}</h3>
-            <p className="text-xs text-white/50 mb-4">{lang === "tl" ? "I-scan para tingnan ang progreso" : "Scan to view progress anytime"}</p>
+            <h3 className="font-bold text-white mb-1">Project Tracker QR Code</h3>
+            <p className="text-xs text-white/50 mb-4">Scan to view progress anytime</p>
             <img src={qrData.qrDataUrl} alt="QR Code" className="mx-auto rounded-xl w-48 h-48" />
             <p className="text-[10px] text-white/30 mt-3 break-all">{qrData.trackUrl}</p>
             <a href={qrData.qrDataUrl} download="solariq-tracker-qr.png" className="mt-3 flex items-center gap-1.5 justify-center text-xs text-[#fbbf24] hover:underline">
-              <Download size={12} /> {lang === "tl" ? "I-download ang QR" : "Download QR Code"}
+              <Download size={12} /> Download QR Code
             </a>
             <button onClick={() => setShowQR(false)} className="absolute top-4 right-4 text-white/50 hover:text-white"><X size={18} /></button>
           </div>
@@ -547,14 +628,14 @@ export default function TrackPage() {
       )}
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-5">
-        {/* Tab Switcher (Optional) */}
-        {project.status === 'commissioned' && (
+        {/* Tab Switcher */}
+        {true && (
           <div className="flex p-1 bg-[hsl(220_24%_8%)] rounded-xl border border-[hsl(220_18%_14%)] w-fit mx-auto mb-2">
             <button 
               onClick={() => setActiveTab('progress')}
               className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'progress' ? 'bg-[#fbbf24] text-[hsl(220_28%_6%)]' : 'text-white/40 hover:text-white'}`}
             >
-              {lang === 'tl' ? 'Progreso' : 'Progress'}
+              Progress
             </button>
             <button 
               onClick={() => setActiveTab('monitoring')}
@@ -566,7 +647,7 @@ export default function TrackPage() {
         )}
 
         {activeTab === 'monitoring' ? (
-          <MonitoringDashboard token={token!} lang={lang} />
+          <MonitoringDashboard token={token!} />
         ) : (
           <>
         {/* Project hero card */}
@@ -579,7 +660,7 @@ export default function TrackPage() {
               </div>
             </div>
             <Badge className={`shrink-0 ${isCommissioned ? "bg-green-500/15 text-green-400 border-green-500/30" : "bg-[#fbbf24]/10 text-[#fbbf24] border-[#fbbf24]/30"} border text-xs`}>
-              {isCommissioned ? "✅ " + (lang === "tl" ? "Kumpleto" : "Commissioned") : `⚡ ${phaseLabels[project.status] || project.status}`}
+              {isCommissioned ? "✅ Commissioned" : `⚡ ${phaseLabels[project.status] || project.status}`}
             </Badge>
           </div>
 
@@ -592,7 +673,7 @@ export default function TrackPage() {
               <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${progress}%`, background: "linear-gradient(90deg, #f59e0b, #fbbf24, #fde68a)" }} />
             </div>
             <div className="flex justify-between text-[10px] text-white/25 mt-1">
-              <span>{t.survey}</span><span>{lang === "tl" ? "Pag-install" : "Installation"}</span><span>{t.complete}</span>
+              <span>{t.survey}</span><span>Installation</span><span>{t.complete}</span>
             </div>
           </div>
 
@@ -654,9 +735,9 @@ export default function TrackPage() {
                 <div className="font-bold text-white">{alreadySigned ? t.alreadySigned : t.signCertificate}</div>
                 {alreadySigned
                   ? <div className="text-xs text-green-400 mt-0.5">
-                      {lang === "tl" ? "Nilagdaan ni " : "Signed by "}{signatures.find(s => s.signerRole === "Client")?.signerName} · {new Date(signatures.find(s => s.signerRole === "Client")!.signedAt).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}
+                      Signed by {signatures.find(s => s.signerRole === "Client")?.signerName} · {new Date(signatures.find(s => s.signerRole === "Client")!.signedAt).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}
                     </div>
-                  : <div className="text-xs text-white/50 mt-0.5">{lang === "tl" ? "Kumpirmahin na natanggap mo ang iyong solar system." : "Confirm you have received and accepted your solar system."}</div>
+                  : <div className="text-xs text-white/50 mt-0.5">Confirm you have received and accepted your solar system.</div>
                 }
               </div>
             </div>
@@ -668,17 +749,15 @@ export default function TrackPage() {
             {showSignModal && !alreadySigned && (
               <div className="mt-4 space-y-3">
                 <div>
-                  <label className="text-xs text-white/50">{lang === "tl" ? "Iyong Pangalan" : "Your Full Name"}</label>
+                  <label className="text-xs text-white/50">Your Full Name</label>
                   <input value={signerName} onChange={e => setSignerName(e.target.value)} placeholder={project.clientName} className="w-full bg-[hsl(220_20%_13%)] border border-[hsl(220_18%_22%)] text-white rounded-lg px-3 py-2 text-sm mt-1" />
                 </div>
-                <SignatureCanvas lang={lang} clientName={project.clientName} onSigned={dataUrl => {
-                  if (!signerName.trim()) { toast({ title: lang === "tl" ? "Ilagay ang iyong pangalan" : "Please enter your name", variant: "destructive" }); return; }
+                <SignatureCanvas clientName={project.clientName} onSigned={dataUrl => {
+                  if (!signerName.trim()) { toast({ title: "Please enter your name", variant: "destructive" }); return; }
                   signMutation.mutate({
                     signerName: signerName || project.clientName,
                     signatureDataUrl: dataUrl,
-                    agreementText: lang === "tl"
-                      ? `Kinukumpirma ko, ${signerName}, na natanggap ko ang solar system na nakainstall sa ${project.address} at nasiyahan ako sa trabaho.`
-                      : `I, ${signerName}, confirm that I have received and accepted the solar system installed at ${project.address} and am satisfied with the installation.`,
+                    agreementText: `I, ${signerName}, confirm that I have received and accepted the solar system installed at ${project.address} and am satisfied with the installation.`,
                   });
                 }} />
                 <button onClick={() => setShowSignModal(false)} className="text-xs text-white/40 hover:text-white/70">Cancel</button>
@@ -688,7 +767,54 @@ export default function TrackPage() {
         )}
 
         {/* Before/After Photos & Gallery */}
-        {photos.length > 0 && <PhotoGallery photos={photos} lang={lang} />}
+        {photos.length > 0 && <PhotoGallery photos={photos} />}
+
+        {/* Net Metering Progress (NEW) */}
+        {!isCommissioned && (
+          <Card className="bg-[hsl(220_24%_9%)] border-[hsl(220_18%_14%)] p-6 overflow-hidden relative">
+            <div className="flex items-center justify-between mb-6">
+               <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-3">
+                 <CreditCard size={18} className="text-blue-400" /> Net Metering Tracker
+               </h3>
+               <Badge variant="outline" className="text-[9px] border-blue-500/30 text-blue-400 uppercase font-black">Meralco / DU Approval</Badge>
+            </div>
+            
+            <div className="relative">
+              <div className="absolute left-[9px] top-0 bottom-0 w-[1px] bg-white/5" />
+              {[
+                { id: 'applied', label: 'Application Submitted', icon: FileText },
+                { id: 'surveyed', label: 'Technical Survey', icon: MapPin },
+                { id: 'nma_signed', label: 'Net Metering Agreement', icon: PenLine },
+                { id: 'meter_installed', label: 'Meter Installation', icon: CreditCard },
+                { id: 'completed', label: 'Energization', icon: Zap },
+              ].map((step, idx) => {
+                const statusOrder = ['pending', 'applied', 'surveyed', 'nma_signed', 'meter_installed', 'completed'];
+                const currentIdx = statusOrder.indexOf(project.netMeteringStatus || 'pending');
+                const stepIdx = statusOrder.indexOf(step.id);
+                const isDone = stepIdx <= currentIdx && project.netMeteringStatus !== 'pending';
+                const isCurrent = step.id === project.netMeteringStatus;
+
+                return (
+                  <div key={step.id} className="flex gap-4 mb-5 last:mb-0 relative">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 z-10 transition-colors ${isDone ? 'bg-blue-500 text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]' : isCurrent ? 'bg-blue-500/20 border border-blue-500 text-blue-400' : 'bg-white/5 border border-white/10 text-white/20'}`}>
+                      {isDone ? <CheckCheck size={10} /> : <step.icon size={10} />}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start">
+                        <p className={`text-xs font-bold transition-colors ${isDone || isCurrent ? 'text-white' : 'text-white/20'}`}>{step.label}</p>
+                      </div>
+                      {isCurrent && (
+                        <p className="text-[10px] text-white/40 mt-1 leading-relaxed italic">
+                          {project.netMeteringNotes || "Currently awaiting DU schedule for this phase."}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        )}
 
         <div className="grid lg:grid-cols-5 gap-5">
           {/* Milestones */}
@@ -711,7 +837,7 @@ export default function TrackPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className={`font-semibold text-sm ${m.status === "pending" ? "text-white/40" : "text-white"}`}>{m.title}</span>
                         <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${m.status === "completed" ? "bg-green-500/15 text-green-400" : m.status === "in_progress" ? "bg-[#fbbf24]/15 text-[#fbbf24]" : "bg-white/5 text-white/30"}`}>
-                          {t[m.status as keyof typeof t] || m.status}
+                          {m.status.replace('_', ' ')}
                         </span>
                       </div>
                       {m.description && <p className={`text-xs mt-0.5 ${m.status === "pending" ? "text-white/25" : "text-white/50"}`}>{m.description}</p>}

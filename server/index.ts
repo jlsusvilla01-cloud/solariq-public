@@ -62,7 +62,15 @@ app.use((req, res, next) => {
 import { initDb } from "./storage";
 
 (async () => {
-  await initDb();
+  try {
+    log("Initializing database...", "startup");
+    await initDb();
+    log("Database initialized successfully", "startup");
+  } catch (err) {
+    console.error("FATAL: Database initialization failed:", err);
+    // Continue for now to allow emergency endpoints or better error pages to serve
+  }
+  
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {

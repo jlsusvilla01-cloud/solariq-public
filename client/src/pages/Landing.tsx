@@ -11,9 +11,18 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { Palette, Moon, Sun as SunIcon, Layers, Sparkles } from "lucide-react";
+
+type Theme = "dark" | "light" | "solana" | "nebula";
 
 // ── Navbar ──
-function Navbar() {
+function Navbar({ theme, setTheme }: { theme: Theme, setTheme: (t: Theme) => void }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -39,7 +48,29 @@ function Navbar() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-3">
-          <Link href="/admin"><a className="text-sm text-white/70 hover:text-white transition-colors px-3 py-1.5">Admin Login</a></Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-white/70 hover:text-white gap-2">
+                <Palette size={16} />
+                <span className="capitalize">{theme}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-[hsl(220_24%_12%)] border-border text-white">
+              <DropdownMenuItem onClick={() => setTheme("dark")} className="gap-2 focus:bg-white/10 cursor-pointer">
+                <Moon size={14} /> Dark
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("light")} className="gap-2 focus:bg-white/10 cursor-pointer">
+                <SunIcon size={14} /> Light
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("solana")} className="gap-2 focus:bg-white/10 cursor-pointer">
+                <Layers size={14} className="text-[#9945FF]" /> Solana
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTheme("nebula")} className="gap-2 focus:bg-white/10 cursor-pointer">
+                <Sparkles size={14} className="text-[#06b6d4]" /> Nebula
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Link href="/admin"><a className="text-sm text-white/70 hover:text-white transition-colors px-3 py-1.5 focus:outline-none">Admin Login</a></Link>
           <button onClick={() => scrollTo("pricing")} className="bg-[#fbbf24] text-[hsl(220_28%_6%)] text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition-all solar-glow-sm">
             Get Started
           </button>
@@ -63,7 +94,17 @@ function Navbar() {
 // ── Hero ──
 function Hero() {
   return (
-    <section className="relative min-h-screen aurora-bg sun-rays flex items-center justify-center pt-20 overflow-hidden">
+    <section className="relative min-h-screen aurora-bg flex items-center justify-center pt-20 overflow-hidden">
+      {/* Cinematic Solar Background */}
+      <div className="absolute inset-0 z-0">
+        <img 
+          src="/hero-bg.png" 
+          alt="Solar Field" 
+          className="w-full h-full object-cover opacity-40 mix-blend-overlay scale-105 active-bg-zoom"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/60 to-background" />
+      </div>
+
       {/* Decorative sun */}
       <div className="absolute top-16 right-[15%] w-64 h-64 rounded-full bg-[#fbbf24] opacity-5 blur-3xl pointer-events-none" />
       <div className="absolute top-24 right-[18%] w-40 h-40 rounded-full bg-[#fbbf24] opacity-8 blur-2xl pointer-events-none" />
@@ -390,9 +431,11 @@ function Footer() {
 }
 
 export default function LandingPage() {
+  const [theme, setTheme] = useState<Theme>("dark");
+
   return (
-    <div className="min-h-screen bg-[hsl(220_28%_6%)]">
-      <Navbar />
+    <div className={`min-h-screen bg-background transition-colors duration-500 ${theme !== 'dark' ? (theme === 'light' ? 'light' : `theme-${theme}`) : ''}`}>
+      <Navbar theme={theme} setTheme={setTheme} />
       <Hero />
       <Features />
       <HowItWorks />

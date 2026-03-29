@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import type { Project, Milestone, Update, Faq, Testimonial, PricingPlan, MilestonePhoto, Signature, NotificationPref, Quotation, Document, Payment, Inventory, Design, InsertDesign, Lead, Referral, Vendor, PurchaseOrder, Crew } from "@shared/schema";
 import {
@@ -7,7 +7,8 @@ import {
   Plus, Trash2, Edit2, Eye, EyeOff, Copy, CheckCircle2, Clock, Send,
   Camera, QrCode, Bell, PenLine, Download, Image as ImageIcon, RefreshCw,
   FileText, Receipt, Package, TrendingUp, Cpu, Info, Zap, Minus,
-  Users, ShoppingCart, CloudSun, Target, Building2, MapPin, Search, Filter, Truck
+  Users, ShoppingCart, CloudSun, Target, Building2, MapPin, Search, Filter, Truck,
+  AlertTriangle, Wind, Sun, AlertCircle, CreditCard
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -87,7 +88,7 @@ function ProjectsTab({ adminName }: { adminName: string }) {
   const { toast } = useToast();
   const [adding, setAdding] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [activeDetailTab, setActiveDetailTab] = useState<"milestones" | "photos" | "updates" | "qr" | "monitoring" | "notif" | "signatures" | "finance">("milestones");
+  const [activeDetailTab, setActiveDetailTab] = useState<"milestones" | "survey" | "updates" | "photos" | "netmetering" | "monitoring" | "finance" | "qr" | "notif" | "signatures">("milestones");
   const [newUpdate, setNewUpdate] = useState("");
   const [photoCaption, setPhotoCaption] = useState("");
   const [photoType, setPhotoType] = useState<"before" | "progress" | "after">("progress");
@@ -109,6 +110,7 @@ function ProjectsTab({ adminName }: { adminName: string }) {
   });
   const { data: notifPref } = useQuery<NotificationPref | null>({ queryKey: ["/api/admin/notif", selectedId], queryFn: () => apiFetch(`/api/admin/projects/${selectedId}/notif`).catch(() => null), enabled: !!selectedId && activeDetailTab === "notif" });
   const { data: sigs = [] } = useQuery<Signature[]>({ queryKey: ["/api/admin/sigs", selectedId], queryFn: () => apiFetch(`/api/admin/projects/${selectedId}/signatures`), enabled: !!selectedId && activeDetailTab === "signatures" });
+  const { data: survey = null, refetch: refetchSurvey } = useQuery<any>({ queryKey: ["/api/admin/survey", selectedId], queryFn: () => apiFetch(`/api/admin/projects/${selectedId}/survey`), enabled: !!selectedId && activeDetailTab === "survey" });
 
   const createMutation = useMutation({
     mutationFn: (data: any) => apiFetch("/api/admin/projects", { method: "POST", body: JSON.stringify(data) }),
@@ -135,6 +137,16 @@ function ProjectsTab({ adminName }: { adminName: string }) {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/admin/notif", selectedId] }); toast({ title: "Notification preferences saved" }); },
   });
 
+  const updateProjectMutation = useMutation({
+    mutationFn: ({ id, data }: any) => apiFetch(`/api/admin/projects/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    onSuccess: () => { refetch(); toast({ title: "Project updated" }); },
+  });
+
+  const saveSurveyMutation = useMutation({
+    mutationFn: (data: any) => apiFetch(`/api/admin/projects/${selectedId}/survey`, { method: "POST", body: JSON.stringify(data) }),
+    onSuccess: () => { refetchSurvey(); toast({ title: "Site survey saved successfully" }); },
+  });
+
   const [notifForm, setNotifForm] = useState({ email: "", phone: "", emailEnabled: true, notifyOnMilestone: true, notifyOnUpdate: true });
   const sel = projects.find(p => p.id === selectedId);
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -152,11 +164,13 @@ function ProjectsTab({ adminName }: { adminName: string }) {
 
   const DETAIL_TABS = [
     { id: "milestones", label: "Milestones", icon: CheckCircle2 },
+    { id: "survey", label: "Site Survey", icon: ClipboardList },
     { id: "updates", label: "Updates", icon: Send },
     { id: "photos", label: "Photos", icon: Camera },
+    { id: "netmetering", label: "Net Metering", icon: CreditCard },
+    { id: "monitoring", label: "Monitoring", icon: Zap },
     { id: "finance", label: "Finance / ROI", icon: DollarSign },
     { id: "qr", label: "QR Code", icon: QrCode },
-    { id: "monitoring", label: "Monitoring", icon: Zap },
     { id: "notif", label: "Notifications", icon: Bell },
     { id: "signatures", label: "Signatures", icon: PenLine },
   ];
@@ -250,7 +264,112 @@ function ProjectsTab({ adminName }: { adminName: string }) {
                 </div>
               )}
 
-              {/* Updates */}
+              {/* Site Survey */}
+              {activeDetailTab === "survey" && (
+                <div className="space-y-4">
+                  <div className="bg-[#fbbf24]/5 border border-[#fbbf24]/20 p-4 rounded-xl">
+                    <h4 className="text-xs font-black text-[#fbbf24] uppercase tracking-widest mb-4 flex items-center gap-2">
+                       <ClipboardList size={11} /> Technical Site Assessment
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] text-white/50 uppercase font-bold">Roof Type</label>
+                        <Select 
+                          defaultValue={survey?.roofType || "metal"} 
+                          onValueChange={v => saveSurveyMutation.mutate({ ...survey, roofType: v })}
+                        >
+                          <SelectTrigger className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="metal">Metal (Rib-type/Stone-coated)</SelectItem>
+                            <SelectItem value="tile">Concrete Tile</SelectItem>
+                            <SelectItem value="asphalt">Asphalt Shingle</SelectItem>
+                            <SelectItem value="concrete">Flat Concrete Slab</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/50 uppercase font-bold">Shading Condition</label>
+                        <Select 
+                          defaultValue={survey?.shadingCondition || "none"} 
+                          onValueChange={v => saveSurveyMutation.mutate({ ...survey, shadingCondition: v })}
+                        >
+                          <SelectTrigger className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None (Clean Exposure)</SelectItem>
+                            <SelectItem value="partial">Partial (Morning/Afternoon)</SelectItem>
+                            <SelectItem value="heavy">Heavy (Trees/Obstructions)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/50 uppercase font-bold">Azimuth (°N)</label>
+                        <Input 
+                          type="number" 
+                          defaultValue={survey?.roofAzimuth || 180} 
+                          onBlur={e => saveSurveyMutation.mutate({ ...survey, roofAzimuth: +e.target.value })}
+                          className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs" 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/50 uppercase font-bold">Roof Tilt (°)</label>
+                        <Input 
+                          type="number" 
+                          defaultValue={survey?.roofTilt || 0} 
+                          onBlur={e => saveSurveyMutation.mutate({ ...survey, roofTilt: +e.target.value })}
+                          className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs" 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/50 uppercase font-bold">Main Breaker (Amp)</label>
+                        <Input 
+                          type="number" 
+                          defaultValue={survey?.mainBreakerSize || 0} 
+                          onBlur={e => saveSurveyMutation.mutate({ ...survey, mainBreakerSize: +e.target.value })}
+                          className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs" 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/50 uppercase font-bold">Est. Cable Run (m)</label>
+                        <Input 
+                          type="number" 
+                          defaultValue={survey?.cableRunEst || 0} 
+                          onBlur={e => saveSurveyMutation.mutate({ ...survey, cableRunEst: +e.target.value })}
+                          className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs" 
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <label className="text-[10px] text-white/50 uppercase font-bold">Structural / Electrical Notes</label>
+                      <textarea
+                        defaultValue={survey?.notes || ""}
+                        onBlur={e => saveSurveyMutation.mutate({ ...survey, notes: e.target.value })}
+                        rows={2}
+                        className="w-full bg-[hsl(220_20%_13%)] border border-[hsl(220_18%_22%)] text-white rounded-lg p-3 text-xs mt-1 resize-none"
+                        placeholder="Detail any obstructions or panel board requirements..."
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] text-white/40 uppercase">Surveyor Name</label>
+                      <Input 
+                        defaultValue={survey?.surveyorName || adminName} 
+                        onBlur={e => saveSurveyMutation.mutate({ ...survey, surveyorName: e.target.value })}
+                        className="bg-white/5 border-white/10 text-white h-8 text-xs" 
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] text-white/40 uppercase">Survey Date</label>
+                      <Input 
+                        type="date"
+                        defaultValue={survey?.surveyDate || new Date().toISOString().split('T')[0]} 
+                        onChange={e => saveSurveyMutation.mutate({ ...survey, surveyDate: e.target.value })}
+                        className="bg-white/5 border-white/10 text-white h-8 text-xs" 
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
               {activeDetailTab === "updates" && (
                 <div className="space-y-3">
                   <div className="flex gap-2">
@@ -266,7 +385,179 @@ function ProjectsTab({ adminName }: { adminName: string }) {
                 </div>
               )}
 
-              {/* Photos */}
+              {activeDetailTab === "netmetering" && (
+                <div className="space-y-4">
+                  <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
+                    <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-3">DU Application Lifecycle</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] text-white/50 uppercase font-black">Current Status</label>
+                        <Select value={sel.netMeteringStatus || 'pending'} onValueChange={v => updateProjectMutation.mutate({ id: sel.id, data: { netMeteringStatus: v } })}>
+                          <SelectTrigger className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending Application</SelectItem>
+                            <SelectItem value="applied">Application Submitted</SelectItem>
+                            <SelectItem value="surveyed">Technical Survey Done</SelectItem>
+                            <SelectItem value="nma_signed">NMA Signed</SelectItem>
+                            <SelectItem value="meter_installed">Meter Installed</SelectItem>
+                            <SelectItem value="completed">Energization / Completed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-white/50">Internal Notes / Phase Details</label>
+                    <textarea 
+                      value={sel.netMeteringNotes || ""} 
+                      onChange={e => updateProjectMutation.mutate({ id: sel.id, data: { netMeteringNotes: e.target.value } })}
+                      placeholder="Enter specific notes for this phase (visible to client)..."
+                      rows={3} 
+                      className="w-full bg-[hsl(220_20%_13%)] border border-[hsl(220_18%_22%)] text-white rounded-lg p-3 text-sm mt-1 resize-none focus:border-blue-500/50 transition-colors" 
+                    />
+                  </div>
+                  <p className="text-[10px] text-white/30 italic">Tip: Updating status triggers a push notification to the client's live tracker.</p>
+                </div>
+              )}
+
+              {/* ── Monitoring / IoT Tab ── */}
+              {activeDetailTab === "monitoring" && (
+                <div className="space-y-5">
+                  {/* Inverter Model & Serial */}
+                  <div className="bg-[hsl(220_20%_12%)] rounded-xl p-4 border border-white/5 space-y-3">
+                    <h4 className="text-xs font-black text-[#fbbf24] uppercase tracking-widest flex items-center gap-2">
+                      <Zap size={12} /> Inverter Configuration
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] text-white/50 uppercase font-black">Inverter Brand / Model</label>
+                        <Select
+                          value={sel.inverterModel || "Huawei SUN2000-8KTL"}
+                          onValueChange={v => updateProjectMutation.mutate({ id: sel.id, data: { inverterModel: v } })}
+                        >
+                          <SelectTrigger className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Huawei SUN2000-8KTL">Huawei SUN2000-8KTL</SelectItem>
+                            <SelectItem value="Huawei SUN2000-5KTL">Huawei SUN2000-5KTL</SelectItem>
+                            <SelectItem value="Growatt SPH6000TL3-BH">Growatt SPH6000TL3-BH</SelectItem>
+                            <SelectItem value="Solis RHI-6K-48ES-5G">Solis RHI-6K-48ES-5G</SelectItem>
+                            <SelectItem value="GoodWe GW8K-ET">GoodWe GW8K-ET</SelectItem>
+                            <SelectItem value="SMA Sunny Boy 6.0">SMA Sunny Boy 6.0</SelectItem>
+                            <SelectItem value="Fronius Primo GEN24 6.0">Fronius Primo GEN24 6.0</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/50 uppercase font-black">Serial Number</label>
+                        <Input
+                          id="inv-serial"
+                          defaultValue={sel.inverterSerial || ""}
+                          placeholder="e.g. SN-20241201-HW"
+                          className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* Monitoring Status */}
+                    <div>
+                      <label className="text-[10px] text-white/50 uppercase font-black mb-2 block">Monitoring Status</label>
+                      <div className="flex gap-2">
+                        {["online", "offline", "faulted"].map(s => (
+                          <button
+                            key={s}
+                            onClick={async () => {
+                              const serial = (document.getElementById("inv-serial") as HTMLInputElement).value;
+                              try {
+                                await apiFetch(`/api/admin/projects/${sel.id}/inverter`, {
+                                  method: "PATCH",
+                                  body: JSON.stringify({ inverterModel: sel.inverterModel, inverterSerial: serial, monitoringStatus: s })
+                                });
+                                refetch();
+                                toast({ title: `Status set to ${s}` });
+                              } catch (e: any) {
+                                toast({ title: "Failed to update status", variant: "destructive", description: e.message });
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border ${
+                              sel.monitoringStatus === s
+                                ? s === "online" ? "bg-green-500/20 border-green-500/50 text-green-400"
+                                  : s === "faulted" ? "bg-red-500/20 border-red-500/50 text-red-400"
+                                  : "bg-white/10 border-white/20 text-white"
+                                : "bg-transparent border-white/10 text-white/30 hover:border-white/30"
+                            }`}
+                          >
+                            {s === "online" && <span className="inline-block w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5 shadow-[0_0_6px_rgba(74,222,128,0.8)] animate-pulse" />}
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <Button
+                      onClick={async () => {
+                        const serial = (document.getElementById("inv-serial") as HTMLInputElement).value;
+                        try {
+                          await apiFetch(`/api/admin/projects/${sel.id}/inverter`, {
+                            method: "PATCH",
+                            body: JSON.stringify({ 
+                              inverterModel: sel.inverterModel || "Huawei SUN2000-8KTL", 
+                              inverterSerial: serial, 
+                              monitoringStatus: sel.monitoringStatus || "offline" 
+                            })
+                          });
+                          refetch();
+                          toast({ title: "Inverter configuration saved ✓" });
+                        } catch (e: any) {
+                          toast({ title: "Failed to save config", variant: "destructive", description: e.message });
+                        }
+                      }}
+                      className="w-full bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold text-xs h-8"
+                    >
+                      Save Inverter Config
+                    </Button>
+                  </div>
+
+                  {/* Demo Data Generator */}
+                  <div className="bg-gradient-to-br from-green-500/5 to-transparent border border-green-500/10 rounded-xl p-4 space-y-3">
+                    <h4 className="text-xs font-black text-green-400 uppercase tracking-widest flex items-center gap-2">
+                      <Zap size={12} /> IoT Data Simulator
+                    </h4>
+                    <p className="text-[11px] text-white/40 leading-relaxed">
+                      Generate a realistic 24-hour solar production curve (48 readings at 30-min intervals) based on the system's <strong className="text-white/60">{sel.systemKw} kWp</strong> capacity. Simulates weather noise and a natural solar bell curve. Clears previous readings first.
+                    </p>
+                    <Button
+                      onClick={async () => {
+                        toast({ title: "Generating 48 readings…" });
+                        try {
+                          const d = await apiFetch(`/api/admin/projects/${sel.id}/monitoring/generate`, { method: "POST" });
+                          refetch();
+                          toast({ title: `✅ Generated ${d.readingsGenerated} readings — system now Online!` });
+                        } catch (e: any) {
+                          toast({ title: "Generation failed", variant: "destructive", description: e.message });
+                        }
+                      }}
+                      className="w-full bg-green-600 hover:bg-green-500 text-white font-bold text-xs h-9 transition-all"
+                    >
+                      <Zap size={13} className="mr-2" />
+                      Generate 24h Demo Data
+                    </Button>
+                    <p className="text-[10px] text-white/20 italic">After generating, check the Live Monitoring tab on the client tracker.</p>
+                  </div>
+
+                  {/* Current Status Summary */}
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "System Size", value: `${sel.systemKw} kWp`, icon: "⚡" },
+                      { label: "Panel Count", value: `${sel.panelCount} pcs`, icon: "☀️" },
+                      { label: "Inv. Status", value: sel.monitoringStatus || "offline", icon: "📡" },
+                    ].map(({ label, value, icon }) => (
+                      <div key={label} className="bg-[hsl(220_20%_12%)] rounded-lg p-3">
+                        <div className="text-lg mb-1">{icon}</div>
+                        <p className="text-[9px] text-white/30 uppercase font-black tracking-widest">{label}</p>
+                        <p className="text-xs font-bold text-white mt-0.5">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               {activeDetailTab === "photos" && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-2 mb-1">
@@ -303,13 +594,42 @@ function ProjectsTab({ adminName }: { adminName: string }) {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 rounded-xl bg-white/5 border border-white/5">
                       <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">Annual Savings</p>
-                      <p className="text-xl font-black text-green-400">₱{(sel.annualSavings || 0).toLocaleString()}</p>
+                      <div className="flex items-center gap-2">
+                         <span className="text-white/40 text-xs">₱</span>
+                         <Input 
+                           id="fin-annual" 
+                           defaultValue={sel.annualSavings || 0} 
+                           className="bg-transparent border-none text-xl font-black text-green-400 p-0 h-auto" 
+                         />
+                      </div>
                     </div>
                     <div className="p-4 rounded-xl bg-white/5 border border-white/5">
-                      <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">ROI Period</p>
-                      <p className="text-xl font-black text-white">{sel.roiProjectedYears || 5} Years</p>
+                      <p className="text-[10px] text-white/40 uppercase font-black tracking-widest mb-1">ROI Period (Years)</p>
+                      <Input 
+                        id="fin-roi" 
+                        defaultValue={sel.roiProjectedYears || 5} 
+                        className="bg-transparent border-none text-xl font-black text-white p-0 h-auto" 
+                      />
                     </div>
                   </div>
+
+                  <Button 
+                    onClick={() => {
+                      const annual = +(document.getElementById("fin-annual") as HTMLInputElement).value;
+                      const roi = +(document.getElementById("fin-roi") as HTMLInputElement).value;
+                      updateProjectMutation.mutate({ 
+                        id: sel.id, 
+                        data: { 
+                          annualSavings: annual, 
+                          roiProjectedYears: roi,
+                          totalLifetimeSavings: annual * 25
+                        } 
+                      });
+                    }}
+                    className="w-full bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold text-xs h-8"
+                  >
+                    Save Financial Data
+                  </Button>
                   
                   <Card className="bg-gradient-to-br from-blue-500/10 to-transparent border-white/10 p-5">
                     <h3 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -408,74 +728,7 @@ function ProjectsTab({ adminName }: { adminName: string }) {
                 </div>
               )}
 
-              {/* Monitoring Config */}
-              {activeDetailTab === "monitoring" && (
-                <div className="space-y-4">
-                  <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-3">
-                    <h3 className="text-xs font-black text-[#fbbf24] uppercase tracking-widest">Inverter Configuration</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-[10px] text-white/40 uppercase font-bold">Inverter Model</label>
-                        <Input 
-                          id="inv-model" 
-                          defaultValue={sel.inverterModel || ""} 
-                          placeholder="e.g. Huawei SUN2000" 
-                          className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs" 
-                        />
-                      </div>
-                      <div>
-                        <label className="text-[10px] text-white/40 uppercase font-bold">Serial Number</label>
-                        <Input 
-                          id="inv-serial" 
-                          defaultValue={sel.inverterSerial || ""} 
-                          placeholder="SN: 123456789" 
-                          className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs" 
-                        />
-                      </div>
-                    </div>
-                    <Button 
-                      onClick={async () => {
-                        const model = (document.getElementById("inv-model") as HTMLInputElement).value;
-                        const serial = (document.getElementById("inv-serial") as HTMLInputElement).value;
-                        await apiFetch(`/api/admin/projects/${sel.id}/monitoring-config`, { 
-                          method: "POST", 
-                          body: JSON.stringify({ inverterModel: model, inverterSerial: serial, monitoringStatus: "online" }) 
-                        });
-                        toast({ title: "Inverter configuration saved" });
-                        refetch();
-                      }}
-                      className="w-full bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold text-xs h-8"
-                    >
-                      Save Configuration
-                    </Button>
-                  </div>
 
-                  <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10 space-y-3">
-                    <h3 className="text-xs font-black text-blue-400 uppercase tracking-widest">Demo Data Generator</h3>
-                    <p className="text-[10px] text-white/30 italic">Generate 24 hours of simulated production data to test the client's live dashboard.</p>
-                    <Button 
-                      variant="outline"
-                      onClick={async () => {
-                        await apiFetch(`/api/admin/projects/${sel.id}/generate-readings`, { method: "POST" });
-                        toast({ title: "24h of mock data generated!" });
-                      }}
-                      className="w-full border-blue-500/30 text-blue-400 hover:bg-blue-500/10 text-xs h-8"
-                    >
-                      <RefreshCw size={12} className="mr-2" /> Generate 24h Mock Data
-                    </Button>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg border border-white/5">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-2 h-2 rounded-full ${sel.monitoringStatus === 'online' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.4)]' : 'bg-red-500'} `} />
-                      <span className="text-[10px] font-bold text-white/50 uppercase">Current Status:</span>
-                    </div>
-                    <Badge variant="outline" className={`${sel.monitoringStatus === 'online' ? 'border-green-500/30 text-green-400 bg-green-500/5' : 'border-red-500/30 text-red-400 bg-red-500/5'} text-[9px] uppercase px-2 py-0`}>
-                      {sel.monitoringStatus || 'offline'}
-                    </Badge>
-                  </div>
-                </div>
-              )}
 
               {/* Signatures */}
               {activeDetailTab === "signatures" && (
@@ -850,33 +1103,41 @@ function LeadsTab() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {['new', 'contacted', 'quoted', 'closed'].map((status) => (
           <div key={status} className="space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-white/5 px-2">
               <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{status}</span>
-              <span className="bg-white/5 text-[9px] px-2 py-0.5 rounded text-white/60">{leads.filter(l => l.status === status).length}</span>
+              <span className="bg-white/5 text-[9px] px-2 py-0.5 rounded text-white/60">
+                {leads.filter(l => l.status === status).length}
+              </span>
             </div>
-            {leads.filter(l => l.status === status).map(lead => (
-              <Card key={lead.id} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 hover:border-[#fbbf24]/30 transition-all cursor-move group">
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="text-sm font-bold text-white group-hover:text-[#fbbf24] transition-colors">{lead.clientName}</h4>
-                  <Badge className="bg-blue-500/10 text-blue-400 border-none text-[8px] px-1.5 h-4 uppercase">{lead.source}</Badge>
+            
+            <div className="space-y-3">
+              {leads.filter(l => l.status === status).length > 0 ? (
+                leads.filter(l => l.status === status).map(lead => (
+                  <Card key={lead.id} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 hover:border-[#fbbf24]/20 transition-all cursor-move group">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="text-sm font-bold text-white group-hover:text-[#fbbf24] transition-colors">{lead.clientName}</h4>
+                      <Badge className="bg-blue-500/10 text-blue-400 border-none text-[8px] px-1.5 h-4 uppercase">{lead.source}</Badge>
+                    </div>
+                    <p className="text-[10px] text-white/40 mb-3 truncate">{lead.notes || "No additional notes provided."}</p>
+                    <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/5">
+                      <div className="flex -space-x-1">
+                        {[1,2,3].map(i => <div key={i} className="w-4 h-4 rounded-full bg-white/10 border border-black" />)}
+                      </div>
+                      <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#fbbf24]" style={{ width: '40%' }} />
+                      </div>
+                    </div>
+                  </Card>
+                ))
+              ) : (
+                <div className="py-8 text-center border border-dashed border-white/5 rounded-xl">
+                  <p className="text-[10px] text-white/10 uppercase font-black tracking-widest">No leads in this stage</p>
                 </div>
-                <p className="text-[10px] text-white/40 mb-3 truncate">{lead.notes || "No additional notes provided."}</p>
-                <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/5">
-                  <div className="flex -space-x-1">
-                    {[1,2,3].map(i => <div key={i} className="w-4 h-4 rounded-full bg-white/10 border border-black" />)}
-                  </div>
-                  <span className="text-[8px] text-white/20 uppercase font-black tracking-tighter">Assigned To: Admin</span>
-                </div>
-              </Card>
-            ))}
-            {leads.filter(l => l.status === status).length === 0 && (
-              <div className="h-24 border-2 border-dashed border-white/5 rounded-xl flex items-center justify-center">
-                <p className="text-[10px] text-white/10 uppercase font-bold">No Leads</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -884,277 +1145,201 @@ function LeadsTab() {
   );
 }
 
-// ── NEW: Procurement & PO Tab ──
+// ── NEW: Procurement & Supplier Marketplace ──
 function ProcurementTab() {
   const { data: vendors = [] } = useQuery<Vendor[]>({ queryKey: ["/api/admin/vendors"], queryFn: () => apiFetch("/api/admin/vendors") });
-  
+  const [activeSubTab, setActiveSubTab] = useState<"marketplace" | "vendors" | "pos">("marketplace");
+
+  const marketplace = [
+    { id: 1, name: "Trina Solar 550W Vertex", cat: "Panels", price: "₱6,500", stock: 120, img: "🔵", vendor: "Trina PH" },
+    { id: 2, name: "Growatt MIN 5000TL-X", cat: "Inverters", price: "₱42,000", stock: 15, img: "⚡", vendor: "Growatt Hub" },
+    { id: 3, name: "Deye 5kW Hybrid", cat: "Inverters", price: "₱85,000", stock: 8, img: "🔋", vendor: "SolAce Distri" },
+    { id: 4, name: "SolarIQ Smart Hub v2", cat: "IoT", price: "₱8,900", stock: 45, img: "🧠", vendor: "SolarIQ Warehouse" },
+    { id: 5, name: "MC4 Connectors (100pk)", cat: "BOS", price: "₱1,200", stock: 200, img: "🔌", vendor: "WiredUp Inc" },
+    { id: 6, name: "Aluminum Rail (6m)", cat: "Mounting", price: "₱2,800", stock: 80, img: "🏗️", vendor: "MountMaster" },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="grid lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 bg-[hsl(220_24%_9%)] border-white/5 p-6">
+      {/* ── Sub-Navigation ── */}
+      <div className="flex items-center gap-1 bg-white/5 p-1 rounded-2xl w-fit border border-white/5">
+        {[
+          { id: "marketplace", label: "Supplier Marketplace", icon: ShoppingCart },
+          { id: "vendors", label: "Approved Vendors", icon: Building2 },
+          { id: "pos", label: "Purchase Orders", icon: Receipt },
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setActiveSubTab(t.id as any)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${activeSubTab === t.id ? 'bg-[#fbbf24] text-black shadow-lg shadow-[#fbbf24]/20' : 'text-white/40 hover:text-white hover:bg-white/5'}`}
+          >
+            <t.icon size={13} />{t.label}
+          </button>
+        ))}
+      </div>
+
+      {activeSubTab === "marketplace" && (
+        <div className="space-y-6">
+          <div className="bg-gradient-to-r from-blue-600/20 via-transparent to-transparent p-8 rounded-3xl border border-blue-500/10 relative overflow-hidden">
+             <div className="relative z-10 flex flex-col sm:flex-row justify-between items-center gap-6">
+               <div>
+                 <h2 className="text-2xl font-black text-white italic tracking-tighter">SolarIQ <span className="text-[#fbbf24]">Direct</span></h2>
+                 <p className="text-white/40 text-sm mt-1">Direct-to-installer marketplace with verified Tier-1 logistics.</p>
+               </div>
+               <div className="flex gap-3">
+                 <Input placeholder="Search components..." className="bg-black/40 border-white/10 text-xs w-64 rounded-xl" />
+                 <Button className="bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl"><Filter size={15} /></Button>
+               </div>
+             </div>
+             <div className="absolute top-0 right-0 w-64 h-64 bg-[#fbbf24]/5 blur-[100px] pointer-events-none" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {marketplace.map(p => (
+              <Card key={p.id} className="bg-[hsl(220_24%_9%)] border-white/5 group hover:border-[#fbbf24]/30 transition-all overflow-hidden cursor-pointer">
+                <div className="aspect-[4/3] bg-gradient-to-br from-white/5 to-transparent flex items-center justify-center text-4xl group-hover:scale-110 transition-transform duration-500 relative">
+                   {p.img}
+                   <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 text-[10px] font-black text-[#fbbf24]">
+                      {p.price}
+                   </div>
+                </div>
+                <div className="p-5">
+                  <div className="flex justify-between items-start mb-1">
+                    <h3 className="font-bold text-white group-hover:text-[#fbbf24] transition-colors">{p.name}</h3>
+                    <span className="text-[9px] text-white/30 uppercase font-bold">{p.cat}</span>
+                  </div>
+                  <p className="text-[10px] text-white/40 mb-4 flex items-center gap-1.5"><Building2 size={10} /> {p.vendor}</p>
+                  
+                  <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                    <div className="text-[10px]">
+                      <span className="text-white/20 uppercase font-black tracking-widest block">In Stock</span>
+                      <span className="text-green-400 font-bold">{p.stock} units</span>
+                    </div>
+                    <Button size="sm" className="bg-[#fbbf24] text-black font-black text-[10px] h-8 rounded-lg px-4 hover:scale-105 transition-transform">
+                      QUICK PO
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === "vendors" && (
+        <Card className="bg-[hsl(220_24%_9%)] border-white/5 p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-lg font-black text-white flex items-center gap-3">
-              <Building2 size={20} className="text-[#fbbf24]" /> Active Vendors
-            </h2>
-            <Button variant="outline" className="h-8 text-xs border-white/10 text-white/60">Manage Multi-Source</Button>
+            <h2 className="text-lg font-black text-white flex items-center gap-3"><Building2 size={20} className="text-[#fbbf24]" /> Approved Vendors</h2>
           </div>
           <div className="space-y-3">
             {vendors.map(vendor => (
               <div key={vendor.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-[#fbbf24]/10 flex items-center justify-center text-[#fbbf24] font-black italic">
-                    {vendor.name[0]}
-                  </div>
+                  <div className="w-10 h-10 rounded-lg bg-[#fbbf24]/10 flex items-center justify-center text-[#fbbf24] font-black italic">{vendor.name[0]}</div>
                   <div>
                     <h4 className="text-sm font-bold text-white">{vendor.name}</h4>
                     <p className="text-[10px] text-white/40 uppercase tracking-widest">{vendor.category} Specialist</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-white/60 mb-1">{vendor.contactPerson}</p>
-                  <Button variant="ghost" className="h-auto p-0 text-[10px] text-[#fbbf24] uppercase font-black">Open Vendor Portal →</Button>
-                </div>
+                <Button variant="ghost" className="text-[10px] text-[#fbbf24] uppercase font-black">Vendor Portal →</Button>
               </div>
             ))}
           </div>
         </Card>
+      )}
 
+      {activeSubTab === "pos" && (
         <div className="space-y-6">
-          <Card className="bg-[#fbbf24] border-none p-6">
-            <h3 className="text-[hsl(220_28%_6%)] font-black uppercase text-xs tracking-widest mb-4 flex items-center justify-between">
-              Auto-Restock Alert <Zap size={14} fill="currentColor" />
-            </h3>
-            <p className="text-[hsl(220_28%_6%)]/70 text-xs font-bold leading-relaxed mb-6">
-              Inventory for <strong>400W Mono-PERC</strong> is below 15%. Should I generate an auto-PO for Canadian Solar?
-            </p>
-            <Button className="w-full bg-black text-white font-black text-[10px] h-10 tracking-widest uppercase">
-              GENERATE PURCHASE ORDER
-            </Button>
-          </Card>
-
-          <Card className="bg-black border-white/5 p-6">
-            <h3 className="text-white/40 font-black uppercase text-[10px] tracking-widest mb-6">In-Transit Status</h3>
+           <Card className="bg-black border-white/5 p-6">
+            <h3 className="text-white/40 font-black uppercase text-[10px] tracking-widest mb-6">Recent Order Activity</h3>
             <div className="space-y-6">
               {[
-                { id: 'PO-1029', status: 'In Custom', color: 'blue' },
-                { id: 'PO-1031', status: 'At Port', color: 'green' }
+                { id: 'PO-1029', status: 'In Custom', color: 'blue', date: 'Oct 24, 2026', total: '₱650,000' },
+                { id: 'PO-1031', status: 'At Port', color: 'green', date: 'Oct 26, 2026', total: '₱124,000' }
               ].map(po => (
-                <div key={po.id} className="relative pl-6 border-l border-white/10">
+                <div key={po.id} className="relative pl-6 border-l border-white/10 flex justify-between items-start">
                   <div className={`absolute -left-[5px] top-1 w-2 h-2 rounded-full ${po.color === 'blue' ? 'bg-blue-400' : 'bg-green-400'}`} />
-                  <p className="text-[9px] font-black text-white/20 uppercase tracking-tighter">Order #{po.id}</p>
-                  <p className="text-xs font-bold text-white mt-1">{po.status} Update</p>
+                  <div>
+                    <p className="text-[9px] font-black text-white/20 uppercase tracking-tighter">Order #{po.id}</p>
+                    <p className="text-xs font-bold text-white mt-1">{po.status} Update</p>
+                    <p className="text-[10px] text-white/40 mt-0.5">Dispatched: {po.date}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-black text-[#fbbf24]">{po.total}</p>
+                    <Button variant="ghost" className="text-[9px] p-0 h-auto text-blue-400 font-bold hover:bg-transparent hover:text-blue-300">Track Shipment</Button>
+                  </div>
                 </div>
               ))}
             </div>
-          </Card>
+           </Card>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
+
 // ── Enhanced: Dashboard Tab Features ──
-function WeatherMatrix() {
+function WeatherMatrix({ projects }: { projects: Project[] }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const syncMutation = useMutation({
+    mutationFn: () => apiFetch("/api/admin/weather/sync", { method: "POST" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/projects"] });
+      toast({ title: "Weather Risk Synced", description: "All active project sites updated with PAGASA/OpenWeather data." });
+    }
+  });
+
+  const highRiskCount = (projects || []).filter(p => p.lastWeatherRisk === "high" && p.status !== "commissioned").length;
   const regions = [
-    { name: "Metro Manila", temp: "32°C", sky: "Sunny", risk: "Low", color: "green" },
-    { name: "Cebu City", temp: "29°C", sky: "Heavy Rain", risk: "HIGH", color: "red" },
-    { name: "Davao City", temp: "31°C", sky: "Cloudy", risk: "Mid", color: "yellow" }
+    { name: "High Risk Sites", count: highRiskCount, risk: "HIGH", color: "red", icon: AlertTriangle },
+    { name: "Medium Risk Sites", count: (projects || []).filter(p => p.lastWeatherRisk === "medium" && p.status !== "commissioned").length, risk: "MID", color: "yellow", icon: Wind },
+    { name: "Optimal Sites", count: (projects || []).filter(p => p.lastWeatherRisk === "low" && p.status !== "commissioned").length, risk: "LOW", color: "green", icon: Sun },
   ];
 
   return (
     <Card className="bg-[hsl(220_24%_9%)] border-white/10 overflow-hidden">
       <div className="bg-white/5 px-4 py-3 border-b border-white/5 flex justify-between items-center">
         <span className="text-[10px] font-black uppercase text-white/60 tracking-widest flex items-center gap-2">
-          <CloudSun size={14} className="text-blue-400" /> Crew Mobility Matrix
+          <CloudSun size={14} className="text-blue-400" /> Operational Risk Matrix
         </span>
-        <Badge variant="outline" className="text-[8px] h-4 border-blue-500/30 text-blue-400 bg-blue-500/5 uppercase font-bold">PAGASA LIVEFEED</Badge>
+        <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} variant="ghost" className="h-6 px-2 text-[8px] bg-[#fbbf24]/10 text-[#fbbf24] hover:bg-[#fbbf24]/20 uppercase font-black tracking-widest border border-[#fbbf24]/20">
+          {syncMutation.isPending ? "Syncing..." : "Sync PAGASA Live →"}
+        </Button>
       </div>
       <div className="divide-y divide-white/5">
         {regions.map((r) => (
           <div key={r.name} className="px-4 py-3 flex items-center justify-between group hover:bg-white/[0.02] transition-colors">
-            <div>
-              <p className="text-[10px] font-black text-white/40 uppercase mb-1 tracking-tighter">{r.name}</p>
-              <p className="text-xs font-bold text-white">{r.sky} · {r.temp}</p>
+            <div className="flex items-center gap-3">
+              <r.icon size={14} className={r.color === 'red' ? 'text-red-400' : r.color === 'yellow' ? 'text-yellow-400' : 'text-green-400'} />
+              <div>
+                <p className="text-[10px] font-black text-white/40 uppercase mb-0.5 tracking-tighter">{r.name}</p>
+                <p className="text-xs font-bold text-white">{r.count} Projects</p>
+              </div>
             </div>
             <div className="text-right">
-              <p className="text-[9px] font-black uppercase text-white/20 mb-1">Operational Risk</p>
-              <span className={`text-[10px] font-black uppercase ${r.color === 'red' ? 'text-red-400' : r.color === 'yellow' ? 'text-yellow-400' : 'text-green-400'}`}>
+              <p className="text-[9px] font-black uppercase text-white/20 mb-0.5">Alert Level</p>
+              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase ${r.color === 'red' ? 'bg-red-500/10 text-red-100 border border-red-500/30' : r.color === 'yellow' ? 'bg-yellow-500/10 text-yellow-100 border border-yellow-500/30' : 'bg-green-500/10 text-green-100 border border-green-500/30'}`}>
                 {r.risk}
               </span>
             </div>
           </div>
         ))}
       </div>
-      <div className="bg-red-500/5 p-3 m-4 rounded-lg border border-red-500/20">
-        <p className="text-[9px] text-red-300/80 leading-relaxed font-medium">
-          <strong>WARNING:</strong> Heavy weather in Cebu projected to delay 3 projects by 48h. Clients have been auto-notified.
-        </p>
-      </div>
+      {highRiskCount > 0 && (
+        <div className="bg-red-500/5 p-3 m-4 rounded-lg border border-red-500/20 flex gap-3 items-start">
+          <AlertCircle size={14} className="text-red-400 shrink-0 mt-0.5" />
+          <p className="text-[9px] text-red-300/80 leading-relaxed font-medium">
+            <strong>SYSTEM ALERT:</strong> {highRiskCount} projects in high-risk zones. Structural mounting halted. Local crews have been auto-notified via SMS.
+          </p>
+        </div>
+      )}
     </Card>
   );
 }
 
-function DashboardTab({ projects }: { projects: Project[] }) {
-  const { data: leads = [] } = useQuery<Lead[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
-  const { data: inventory = [] } = useQuery<Inventory[]>({ queryKey: ["/api/admin/inventory"], queryFn: () => apiFetch("/api/admin/inventory") });
 
-  const metrics = [
-    { label: "Pipeline Value", val: "₱4.2M", icon: Target, trend: "+12%" },
-    { label: "Active Leads", val: leads.length.toString(), icon: Users, trend: "+4" },
-    { label: "Inventory Cost", val: "₱" + (inventory.reduce((acc, i) => acc + (i.quantity * 450), 0) / 1000).toFixed(0) + "K", icon: ShoppingCart, trend: "Stable" },
-    { label: "Systems Online", val: projects.filter(p => p.monitoringStatus === 'online').length.toString(), icon: Zap, trend: "Active" },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {metrics.map(m => (
-          <Card key={m.label} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 group hover:border-[#fbbf24]/20 transition-all">
-            <div className="flex justify-between items-start mb-3">
-              <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-white/40 group-hover:bg-[#fbbf24]/10 group-hover:text-[#fbbf24] transition-all">
-                <m.icon size={16} />
-              </div>
-              <span className="text-[9px] text-green-400 font-bold bg-green-400/5 px-1.5 py-0.5 rounded">{m.trend}</span>
-            </div>
-            <p className="text-[10px] text-white/30 uppercase font-black tracking-widest">{m.label}</p>
-            <p className="text-xl font-black text-white mt-1">{m.val}</p>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Active Projects Quick-Feed */}
-          <Card className="bg-[hsl(220_24%_9%)] border-white/5 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-black text-white uppercase tracking-widest flex items-center gap-3">
-                <ClipboardList size={18} className="text-[#fbbf24]" /> Logistics Feed
-              </h3>
-              <Button variant="ghost" className="text-[10px] text-white/40 uppercase font-bold p-0 h-auto">View Detailed Logs</Button>
-            </div>
-            <div className="space-y-6">
-              {projects.slice(0, 3).map(p => (
-                <div key={p.id} className="flex gap-4">
-                  <div className="space-y-1 mt-1">
-                    <div className="w-1.5 h-1.5 rounded-full bg-[#fbbf24]" />
-                    <div className="w-[1px] h-full bg-white/5 ml-[2px]" />
-                  </div>
-                  <div className="flex-1 pb-6">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs font-bold text-white">{p.clientName}</p>
-                      <span className="text-[9px] text-white/20 uppercase font-black">2h ago</span>
-                    </div>
-                    <p className="text-[10px] text-white/40 mb-3">{p.address}</p>
-                    <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex items-center gap-3">
-                      <ImageIcon size={14} className="text-blue-400" />
-                      <span className="text-[9px] text-white/60 font-medium">New Structural Mount photo uploaded by Team Alfa</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        <div className="space-y-6">
-          <WeatherMatrix />
-          
-          <Card className="bg-gradient-to-br from-[#fbbf24]/20 to-transparent border-white/10 p-6 relative overflow-hidden">
-            <Target className="absolute -bottom-6 -right-6 w-32 h-32 text-[#fbbf24]/5" />
-            <h3 className="text-xs font-black text-[#fbbf24] uppercase tracking-widest mb-2 flex items-center gap-2">
-              Referral Engine <Building2 size={14} />
-            </h3>
-            <p className="text-sm font-bold text-white mb-4">You have ₱15,000 in pending payouts for "Juan Gomez" referral.</p>
-            <Button size="sm" className="w-full bg-[#fbbf24] text-black font-black text-[10px] tracking-widest uppercase">
-              APPROVE PAYOUTS
-            </Button>
-          </Card>
-
-          <Card className="bg-[hsl(220_24%_9%)] border-white/5 p-6 border-l-4 border-green-500/50">
-            <h3 className="text-xs font-black text-white uppercase tracking-widest mb-4 flex items-center justify-between">
-              System Health <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-white/40 uppercase font-bold">Grid Feed Priority</span>
-                <span className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Normal</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] text-white/40 uppercase font-bold">Active Alarms</span>
-                <span className="text-[10px] text-white/60 font-bold">0 Portfolio-wide</span>
-              </div>
-              <div className="pt-4 border-t border-white/5">
-                <p className="text-[10px] text-white/20 italic mb-3">All connected inverters are reporting nominal production levels for current coordinates.</p>
-                <div className="flex items-center gap-2">
-                   <div className="flex-1 h-1 bg-[hsl(220_18%_14%)] rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500" style={{ width: '100%' }} />
-                   </div>
-                   <span className="text-[9px] font-black text-green-400">100% OK</span>
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── NEW: Inventory Tab ──
-function InventoryTabOld() {
-  const { data: inv = [], refetch } = useQuery<Inventory[]>({ queryKey: ["/api/admin/inventory"], queryFn: () => apiFetch("/api/admin/inventory") });
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: any) => apiFetch(`/api/admin/inventory/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
-    onSuccess: () => refetch(),
-  });
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-white flex items-center gap-2">
-          <Package size={18} className="text-[#fbbf24]" /> Warehouse Inventory
-        </h2>
-        <Button size="sm" className="bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold gap-2">
-          <Plus size={14} /> Add Item
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {inv.map(item => (
-          <Card key={item.id} className="bg-[hsl(220_24%_9%)] border-[hsl(220_18%_16%)]">
-            <CardContent className="p-4">
-              <div className="flex justify-between items-start mb-3">
-                <div className={`p-2 rounded-lg ${item.quantity <= item.minThreshold ? 'bg-red-500/10' : 'bg-white/5'}`}>
-                  <Package size={16} className={item.quantity <= item.minThreshold ? 'text-red-400' : 'text-white/40'} />
-                </div>
-                <Badge variant="outline" className={`text-[9px] border-white/10 ${item.quantity <= item.minThreshold ? 'bg-red-500/10 text-red-400' : 'text-white/40'}`}>
-                  Threshold: {item.minThreshold}
-                </Badge>
-              </div>
-              <h3 className="font-bold text-white text-sm truncate">{item.itemName}</h3>
-              <p className="text-xs text-white/30 mb-4">{item.category}</p>
-              
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-[10px] text-white/20 uppercase font-bold tracking-widest">Available</p>
-                  <p className={`text-2xl font-black ${item.quantity <= item.minThreshold ? 'text-red-400' : 'text-white'}`}>{item.quantity}</p>
-                </div>
-                <div className="flex gap-1">
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-white/30 hover:text-white" onClick={() => updateMutation.mutate({ id: item.id, data: { quantity: item.quantity - 1 } })}>
-                    <Minus size={14} />
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-8 w-8 text-white/30 hover:text-white" onClick={() => updateMutation.mutate({ id: item.id, data: { quantity: item.quantity + 1 } })}>
-                    <Plus size={14} />
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ── NEW: AI Solar Designer Tab ──
 function DesignerTab() {
@@ -1617,7 +1802,7 @@ function ServiceTab() {
 }
 
 // ── ERP: Analytics Tab ──
-function AnalyticsTabOld({ projects }: { projects: any[] }) {
+function DashboardTab({ projects }: { projects: any[] }) {
   const { data: leads = [] } = useQuery<any[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
   const totalRevenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
