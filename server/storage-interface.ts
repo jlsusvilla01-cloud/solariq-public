@@ -27,7 +27,8 @@ import type {
   Schedule, InsertSchedule, 
   Notification, InsertNotification, 
   Admin, SolarReading, InsertReading, 
-  SiteSurvey, InsertSiteSurvey 
+  SiteSurvey, InsertSiteSurvey,
+  Referral, Vendor
 } from "@shared/schema";
 
 export interface IStorage {
