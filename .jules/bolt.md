@@ -1,0 +1,3 @@
+## 2024-03-24 - React Anti-Pattern: O(N²) Nested Array Methods in Render
+**Learning:** Found an $O(N \times M)$ complexity issue in `client/src/pages/Track.tsx` where `photos.filter(...)` was called inside `milestones.map(...)` during rendering. This causes the app to re-iterate the entire photos array for every milestone on every render, severely degrading performance as project data grows.
+**Action:** Replace nested loops in render functions with $O(N + M)$ hash map lookups. Pre-calculate the mapping using `useMemo` (e.g., grouping photos by `milestoneId`) and use `.get()` in the render loop.
