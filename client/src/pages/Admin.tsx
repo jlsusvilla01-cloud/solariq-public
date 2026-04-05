@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import type { Project, Milestone, Update, Faq, Testimonial, PricingPlan, MilestonePhoto, Signature, NotificationPref, Quotation, Document, Payment, Inventory, Design, InsertDesign, Lead, Referral, Vendor, PurchaseOrder, Crew } from "@shared/schema";
@@ -1805,18 +1805,40 @@ function ServiceTab() {
 function DashboardTab({ projects }: { projects: any[] }) {
   const { data: leads = [] } = useQuery<any[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
-  const totalRevenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const totalExpenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
-  const avgDeal = projects.length ? Math.round(projects.reduce((s, p) => s + (p.contractValue || 0), 0) / projects.length) : 0;
-  const commissioned = projects.filter(p => p.status === "commissioned").length;
-  const closeRate = leads.length ? Math.round((commissioned / leads.length) * 100) : 0;
-  const stages = [
-    { label: "New Leads", count: leads.filter((l: any) => l.status === "new").length, color: "bg-blue-500" },
-    { label: "Quoted", count: leads.filter((l: any) => l.status === "quoted").length, color: "bg-yellow-500" },
-    { label: "Won", count: leads.filter((l: any) => l.status === "closed_won").length, color: "bg-green-500" },
-    { label: "Commissioned", count: commissioned, color: "bg-[#fbbf24]" },
-  ];
-  const maxStage = Math.max(...stages.map(s => s.count), 1);
+
+  const {
+    totalRevenue,
+    totalExpenses,
+    avgDeal,
+    commissioned,
+    closeRate,
+    stages,
+    maxStage
+  } = useMemo(() => {
+    // ⚡ Bolt: Memoize heavy array operations to prevent unnecessary recalculations on re-render.
+    const tr = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
+    const te = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
+    const ad = projects.length ? Math.round(projects.reduce((s, p) => s + (p.contractValue || 0), 0) / projects.length) : 0;
+    const comm = projects.filter(p => p.status === "commissioned").length;
+    const cr = leads.length ? Math.round((comm / leads.length) * 100) : 0;
+    const stgs = [
+      { label: "New Leads", count: leads.filter((l: any) => l.status === "new").length, color: "bg-blue-500" },
+      { label: "Quoted", count: leads.filter((l: any) => l.status === "quoted").length, color: "bg-yellow-500" },
+      { label: "Won", count: leads.filter((l: any) => l.status === "closed_won").length, color: "bg-green-500" },
+      { label: "Commissioned", count: comm, color: "bg-[#fbbf24]" },
+    ];
+    const ms = Math.max(...stgs.map(s => s.count), 1);
+
+    return {
+      totalRevenue: tr,
+      totalExpenses: te,
+      avgDeal: ad,
+      commissioned: comm,
+      closeRate: cr,
+      stages: stgs,
+      maxStage: ms
+    };
+  }, [accounts, projects, leads]);
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -1947,17 +1969,22 @@ function TenantsTab() {
 
 // ── Elite Feature 1: Analytics & BI ──
 function AnalyticsTab({ projects }: { projects: any[] }) {
-  const totalRevenue = projects.reduce((s: number, p: any) => s + (p.contractValue || 0), 0);
-  const completed = projects.filter((p: any) => p.status === "commissioned").length;
-  const avgProgress = projects.length ? Math.round(projects.reduce((s: number, p: any) => s + (p.overallProgress || 0), 0) / projects.length) : 0;
-  const totalSavings = projects.reduce((s: number, p: any) => s + (p.totalLifetimeSavings || 0), 0);
-  const kpis = [
-    { label: "Total Revenue", value: `₱${(totalRevenue / 1000).toFixed(0)}K`, sub: `${projects.length} contracts`, color: "#fbbf24" },
-    { label: "Commissioned", value: String(completed), sub: "fully complete", color: "#22d3ee" },
-    { label: "Avg Progress", value: `${avgProgress}%`, sub: "across all builds", color: "#a78bfa" },
-    { label: "Client Savings", value: `₱${(totalSavings / 1_000_000).toFixed(1)}M`, sub: "lifetime projected", color: "#4ade80" },
-  ];
-  const barData = projects.slice(0, 8).map((p: any) => ({ name: (p.clientName as string)?.split(" ")[0] || "—", val: p.overallProgress || 0 }));
+  const { totalRevenue, completed, avgProgress, totalSavings, kpis, barData } = useMemo(() => {
+    // ⚡ Bolt: Memoize heavy computations to prevent expensive array operations on every render.
+    const tr = projects.reduce((s: number, p: any) => s + (p.contractValue || 0), 0);
+    const comp = projects.filter((p: any) => p.status === "commissioned").length;
+    const ap = projects.length ? Math.round(projects.reduce((s: number, p: any) => s + (p.overallProgress || 0), 0) / projects.length) : 0;
+    const ts = projects.reduce((s: number, p: any) => s + (p.totalLifetimeSavings || 0), 0);
+    const k = [
+      { label: "Total Revenue", value: `₱${(tr / 1000).toFixed(0)}K`, sub: `${projects.length} contracts`, color: "#fbbf24" },
+      { label: "Commissioned", value: String(comp), sub: "fully complete", color: "#22d3ee" },
+      { label: "Avg Progress", value: `${ap}%`, sub: "across all builds", color: "#a78bfa" },
+      { label: "Client Savings", value: `₱${(ts / 1_000_000).toFixed(1)}M`, sub: "lifetime projected", color: "#4ade80" },
+    ];
+    const bd = projects.slice(0, 8).map((p: any) => ({ name: (p.clientName as string)?.split(" ")[0] || "—", val: p.overallProgress || 0 }));
+
+    return { totalRevenue: tr, completed: comp, avgProgress: ap, totalSavings: ts, kpis: k, barData: bd };
+  }, [projects]);
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
