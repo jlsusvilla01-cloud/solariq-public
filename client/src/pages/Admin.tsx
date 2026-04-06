@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import type { Project, Milestone, Update, Faq, Testimonial, PricingPlan, MilestonePhoto, Signature, NotificationPref, Quotation, Document, Payment, Inventory, Design, InsertDesign, Lead, Referral, Vendor, PurchaseOrder, Crew } from "@shared/schema";
@@ -1551,10 +1551,21 @@ function HRTab() {
 function FinanceTab() {
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
   const { data: journal = [] } = useQuery<any[]>({ queryKey: ["/api/admin/journal"], queryFn: () => apiFetch("/api/admin/journal") });
-  const revenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const expenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
-  const assets = accounts.filter((a: any) => a.type === "asset").reduce((s: number, a: any) => s + a.balance, 0);
-  const liabilities = accounts.filter((a: any) => a.type === "liability").reduce((s: number, a: any) => s + a.balance, 0);
+
+  // ⚡ Bolt Performance Optimization:
+  // Replaced multiple `.filter(...).reduce(...)` chains with a single pass over `accounts`.
+  // Memoized with `useMemo` to prevent O(N) recalculations on every render,
+  // drastically improving dashboard performance for large datasets.
+  const { revenue, expenses, assets, liabilities } = useMemo(() => {
+    let rev = 0, exp = 0, ast = 0, liab = 0;
+    accounts.forEach((a: any) => {
+      if (a.type === "revenue") rev += a.balance;
+      else if (a.type === "expense") exp += a.balance;
+      else if (a.type === "asset") ast += a.balance;
+      else if (a.type === "liability") liab += a.balance;
+    });
+    return { revenue: rev, expenses: exp, assets: ast, liabilities: liab };
+  }, [accounts]);
   const netIncome = revenue - expenses;
   const typeColors: Record<string, string> = { asset: "text-blue-400 bg-blue-400/10", liability: "text-red-400 bg-red-400/10", equity: "text-purple-400 bg-purple-400/10", revenue: "text-green-400 bg-green-400/10", expense: "text-orange-400 bg-orange-400/10" };
   const sections = ["asset", "liability", "equity", "revenue", "expense"];
@@ -1805,17 +1816,52 @@ function ServiceTab() {
 function DashboardTab({ projects }: { projects: any[] }) {
   const { data: leads = [] } = useQuery<any[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
-  const totalRevenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const totalExpenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
-  const avgDeal = projects.length ? Math.round(projects.reduce((s, p) => s + (p.contractValue || 0), 0) / projects.length) : 0;
-  const commissioned = projects.filter(p => p.status === "commissioned").length;
-  const closeRate = leads.length ? Math.round((commissioned / leads.length) * 100) : 0;
-  const stages = [
-    { label: "New Leads", count: leads.filter((l: any) => l.status === "new").length, color: "bg-blue-500" },
-    { label: "Quoted", count: leads.filter((l: any) => l.status === "quoted").length, color: "bg-yellow-500" },
-    { label: "Won", count: leads.filter((l: any) => l.status === "closed_won").length, color: "bg-green-500" },
-    { label: "Commissioned", count: commissioned, color: "bg-[#fbbf24]" },
-  ];
+
+  // ⚡ Bolt Performance Optimization:
+  // Combined filter/reduce into a single loop over accounts.
+  // Memoized to prevent recalculation unless accounts data changes.
+  const { totalRevenue, totalExpenses } = useMemo(() => {
+    let rev = 0, exp = 0;
+    accounts.forEach((a: any) => {
+      if (a.type === "revenue") rev += a.balance;
+      else if (a.type === "expense") exp += a.balance;
+    });
+    return { totalRevenue: rev, totalExpenses: exp };
+  }, [accounts]);
+
+  // ⚡ Bolt Performance Optimization:
+  // Replaced multiple O(N) iterations with a single loop over projects.
+  // Reduces re-renders and improves perceived performance.
+  const { avgDeal, commissioned, closeRate } = useMemo(() => {
+    let contractValueSum = 0;
+    let commissionedCount = 0;
+    projects.forEach(p => {
+      contractValueSum += (p.contractValue || 0);
+      if (p.status === "commissioned") commissionedCount++;
+    });
+    return {
+      avgDeal: projects.length ? Math.round(contractValueSum / projects.length) : 0,
+      commissioned: commissionedCount,
+      closeRate: leads.length ? Math.round((commissionedCount / leads.length) * 100) : 0
+    };
+  }, [projects, leads.length]);
+
+  // ⚡ Bolt Performance Optimization:
+  // Consolidated 3 separate .filter().length operations into a single O(N) pass.
+  const stages = useMemo(() => {
+    let newCount = 0, quotedCount = 0, wonCount = 0;
+    leads.forEach((l: any) => {
+      if (l.status === "new") newCount++;
+      else if (l.status === "quoted") quotedCount++;
+      else if (l.status === "closed_won") wonCount++;
+    });
+    return [
+      { label: "New Leads", count: newCount, color: "bg-blue-500" },
+      { label: "Quoted", count: quotedCount, color: "bg-yellow-500" },
+      { label: "Won", count: wonCount, color: "bg-green-500" },
+      { label: "Commissioned", count: commissioned, color: "bg-[#fbbf24]" },
+    ];
+  }, [leads, commissioned]);
   const maxStage = Math.max(...stages.map(s => s.count), 1);
   return (
     <div className="space-y-6">
@@ -1947,10 +1993,24 @@ function TenantsTab() {
 
 // ── Elite Feature 1: Analytics & BI ──
 function AnalyticsTab({ projects }: { projects: any[] }) {
-  const totalRevenue = projects.reduce((s: number, p: any) => s + (p.contractValue || 0), 0);
-  const completed = projects.filter((p: any) => p.status === "commissioned").length;
-  const avgProgress = projects.length ? Math.round(projects.reduce((s: number, p: any) => s + (p.overallProgress || 0), 0) / projects.length) : 0;
-  const totalSavings = projects.reduce((s: number, p: any) => s + (p.totalLifetimeSavings || 0), 0);
+  // ⚡ Bolt Performance Optimization:
+  // Eliminated 4 separate O(N) reductions on projects array per render.
+  // Performs calculations in a single loop and memoizes the result.
+  const { totalRevenue, completed, avgProgress, totalSavings } = useMemo(() => {
+    let rev = 0, comp = 0, prog = 0, sav = 0;
+    projects.forEach((p: any) => {
+      rev += (p.contractValue || 0);
+      if (p.status === "commissioned") comp++;
+      prog += (p.overallProgress || 0);
+      sav += (p.totalLifetimeSavings || 0);
+    });
+    return {
+      totalRevenue: rev,
+      completed: comp,
+      avgProgress: projects.length ? Math.round(prog / projects.length) : 0,
+      totalSavings: sav
+    };
+  }, [projects]);
   const kpis = [
     { label: "Total Revenue", value: `₱${(totalRevenue / 1000).toFixed(0)}K`, sub: `${projects.length} contracts`, color: "#fbbf24" },
     { label: "Commissioned", value: String(completed), sub: "fully complete", color: "#22d3ee" },
