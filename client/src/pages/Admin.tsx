@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -2067,17 +2067,21 @@ function TenantsTab() {
 
 // ── Elite Feature 1: Analytics & BI ──
 function AnalyticsTab({ projects }: { projects: any[] }) {
-  const totalRevenue = projects.reduce((s: number, p: any) => s + (p.contractValue || 0), 0);
-  const completed = projects.filter((p: any) => p.status === "commissioned").length;
-  const avgProgress = projects.length ? Math.round(projects.reduce((s: number, p: any) => s + (p.overallProgress || 0), 0) / projects.length) : 0;
-  const totalSavings = projects.reduce((s: number, p: any) => s + (p.totalLifetimeSavings || 0), 0);
-  const kpis = [
-    { label: "Total Revenue", value: `₱${(totalRevenue / 1000).toFixed(0)}K`, sub: `${projects.length} contracts`, color: "#fbbf24" },
-    { label: "Commissioned", value: String(completed), sub: "fully complete", color: "#22d3ee" },
-    { label: "Avg Progress", value: `${avgProgress}%`, sub: "across all builds", color: "#a78bfa" },
-    { label: "Client Savings", value: `₱${(totalSavings / 1_000_000).toFixed(1)}M`, sub: "lifetime projected", color: "#4ade80" },
-  ];
-  const barData = projects.slice(0, 8).map((p: any) => ({ name: (p.clientName as string)?.split(" ")[0] || "—", val: p.overallProgress || 0 }));
+  const { totalRevenue, completed, avgProgress, totalSavings, kpis, barData } = useMemo(() => {
+    const totalRevenue = projects.reduce((s: number, p: any) => s + (p.contractValue || 0), 0);
+    const completed = projects.filter((p: any) => p.status === "commissioned").length;
+    const avgProgress = projects.length ? Math.round(projects.reduce((s: number, p: any) => s + (p.overallProgress || 0), 0) / projects.length) : 0;
+    const totalSavings = projects.reduce((s: number, p: any) => s + (p.totalLifetimeSavings || 0), 0);
+    const kpis = [
+      { label: "Total Revenue", value: `₱${(totalRevenue / 1000).toFixed(0)}K`, sub: `${projects.length} contracts`, color: "#fbbf24" },
+      { label: "Commissioned", value: String(completed), sub: "fully complete", color: "#22d3ee" },
+      { label: "Avg Progress", value: `${avgProgress}%`, sub: "across all builds", color: "#a78bfa" },
+      { label: "Client Savings", value: `₱${(totalSavings / 1_000_000).toFixed(1)}M`, sub: "lifetime projected", color: "#4ade80" },
+    ];
+    const barData = projects.slice(0, 8).map((p: any) => ({ name: (p.clientName as string)?.split(" ")[0] || "—", val: p.overallProgress || 0 }));
+    return { totalRevenue, completed, avgProgress, totalSavings, kpis, barData };
+  }, [projects]);
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
