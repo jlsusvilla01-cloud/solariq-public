@@ -27,7 +27,9 @@ function Navbar({ theme, setTheme }: { theme: Theme, setTheme: (t: Theme) => voi
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 40);
-    window.addEventListener("scroll", fn);
+    // ⚡ Bolt Optimization: Added { passive: true } to the scroll event listener.
+    // Impact: Improves scroll performance by unblocking the main thread, resulting in smoother scrolling.
+    window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
   }, []);
   const scrollTo = (id: string) => { document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }); setOpen(false); };

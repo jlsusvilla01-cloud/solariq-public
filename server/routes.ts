@@ -83,13 +83,19 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.get("/api/track/:token", async (req, res) => {
     const project = await storage.getProjectByToken(req.params.token);
     if (!project) return res.status(404).json({ error: "Project not found. Check your link." });
-    const ms = await storage.getMilestonesByProject(project.id);
-    const upd = await storage.getUpdatesByProject(project.id);
-    const photos = await storage.getPhotosByProject(project.id);
-    const sigs = await storage.getSignaturesByProject(project.id);
-    const qts = await storage.getQuotationsByProject(project.id);
-    const docs = await storage.getDocumentsByProject(project.id);
-    const pays = await storage.getPaymentsByProject(project.id);
+
+    // ⚡ Bolt Optimization: Parallelized independent database queries.
+    // Impact: Reduces endpoint waterfall latency significantly, especially under high polling load (every 30s).
+    const [ms, upd, photos, sigs, qts, docs, pays] = await Promise.all([
+      storage.getMilestonesByProject(project.id),
+      storage.getUpdatesByProject(project.id),
+      storage.getPhotosByProject(project.id),
+      storage.getSignaturesByProject(project.id),
+      storage.getQuotationsByProject(project.id),
+      storage.getDocumentsByProject(project.id),
+      storage.getPaymentsByProject(project.id),
+    ]);
+
     res.json({
       project,
       milestones: ms.sort((a, b) => a.sortOrder - b.sortOrder),
@@ -294,8 +300,12 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     await storage.updateProject(updated!.projectId, { overallProgress: pct, status: updated!.phase });
     // Send notification if milestone completed
     if (data.status === "completed") {
-      const notif = await storage.getNotifPref(updated!.projectId);
-      const project = await storage.getProject(updated!.projectId);
+      // ⚡ Bolt Optimization: Parallelized independent database queries.
+      // Impact: Reduces synchronous database waiting before sending emails.
+      const [notif, project] = await Promise.all([
+        storage.getNotifPref(updated!.projectId),
+        storage.getProject(updated!.projectId)
+      ]);
       if (notif?.emailEnabled && notif.email && project) {
         const host = `${req.protocol}://${req.get("host")}`;
         const trackUrl = `${host}/#/track/${project.shareToken}`;
@@ -314,8 +324,12 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     const pct = ms.length ? Math.round((done / ms.length) * 100) : 0;
     await storage.updateProject(+req.params.id, { overallProgress: pct });
     // Send email notification
-    const notif = await storage.getNotifPref(+req.params.id);
-    const project = await storage.getProject(+req.params.id);
+    // ⚡ Bolt Optimization: Parallelized independent database queries.
+    // Impact: Reduces synchronous database waiting before sending emails.
+    const [notif, project] = await Promise.all([
+      storage.getNotifPref(+req.params.id),
+      storage.getProject(+req.params.id)
+    ]);
     if (notif?.emailEnabled && notif.email && project) {
       const host = `${req.protocol}://${req.get("host")}`;
       const trackUrl = `${host}/#/track/${project.shareToken}`;
@@ -433,9 +447,13 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     const { token, pin } = req.body;
     const project = await storage.getProjectByTokenAndPin(token, pin);
     if (!project) return res.status(401).json({ error: "Invalid PIN or link." });
-    const ms = await storage.getMilestonesByProject(project.id);
-    const docs = await storage.getDocumentsByProject(project.id);
-    const pays = await storage.getPaymentsByProject(project.id);
+    // ⚡ Bolt Optimization: Parallelized independent database queries.
+    // Impact: Reduces authentication latency and database connection hold times.
+    const [ms, docs, pays] = await Promise.all([
+      storage.getMilestonesByProject(project.id),
+      storage.getDocumentsByProject(project.id),
+      storage.getPaymentsByProject(project.id)
+    ]);
     res.json({ project, milestones: ms, documents: docs, payments: pays });
   });
   app.get("/api/admin/projects/:id/messages", requireAuth, async (req, res) => res.json(await storage.getClientMessages(+req.params.id)));
