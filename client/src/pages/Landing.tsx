@@ -70,9 +70,9 @@ function Navbar({ theme, setTheme }: { theme: Theme, setTheme: (t: Theme) => voi
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Link href="/admin"><a className="text-sm text-white/70 hover:text-white transition-colors px-3 py-1.5 focus:outline-none">Admin Login</a></Link>
+          <Link href="/admin"><a className="text-sm text-white/70 hover:text-white transition-colors px-3 py-1.5 focus:outline-none">Sign In</a></Link>
           <button onClick={() => scrollTo("pricing")} className="bg-[#fbbf24] text-[hsl(220_28%_6%)] text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition-all solar-glow-sm">
-            Get Started
+            Sign Up
           </button>
         </div>
         <button onClick={() => setOpen(v => !v)} className="md:hidden text-white/70 hover:text-white">
@@ -84,7 +84,10 @@ function Navbar({ theme, setTheme }: { theme: Theme, setTheme: (t: Theme) => voi
           {[["Features","features"],["How It Works","how"],["Testimonials","testimonials"],["FAQ","faq"],["Pricing","pricing"]].map(([l,id]) => (
             <button key={id} onClick={() => scrollTo(id)} className="block w-full text-left text-sm text-white/70 hover:text-white py-1">{l}</button>
           ))}
-          <Link href="/admin"><a className="block text-sm text-white/70 py-1">Admin Login</a></Link>
+          <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
+            <Link href="/admin"><a className="block text-sm text-white/70 py-1">Sign In</a></Link>
+            <button onClick={() => scrollTo("pricing")} className="block text-left text-sm text-[#fbbf24] py-1 font-bold">Sign Up</button>
+          </div>
         </div>
       )}
     </header>

@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import type { Project, Milestone, Update, Faq, Testimonial, PricingPlan, MilestonePhoto, Signature, NotificationPref, Quotation, Document, Payment, Inventory, Design, InsertDesign, Lead, Referral, Vendor, PurchaseOrder, Crew } from "@shared/schema";
 import {
   LayoutDashboard, ClipboardList, Star, DollarSign, LogOut, Menu, X,
-  Plus, Trash2, Edit2, Eye, EyeOff, Copy, CheckCircle2, Clock, Send,
+  Plus, Trash2, Edit2, Eye, EyeOff, Copy, CheckCircle2, Clock, Send, ChevronLeft,
   Camera, QrCode, Bell, PenLine, Download, Image as ImageIcon, RefreshCw,
   FileText, Receipt, Package, TrendingUp, Cpu, Info, Zap, Minus,
   Users, ShoppingCart, CloudSun, Target, Building2, MapPin, Search, Filter, Truck,
@@ -31,6 +32,7 @@ const apiFetch = async (url: string, opts: any = {}) => {
 // ── Login ──
 function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => void }) {
   const [u, setU] = useState("admin"); const [p, setP] = useState("solariq2026");
+  const [showP, setShowP] = useState(false);
   const [err, setErr] = useState(""); const [loading, setLoading] = useState(false);
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setErr(""); setLoading(true);
@@ -47,18 +49,24 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
     window.location.href = "/api/auth/google";
   };
   return (
-    <div className="min-h-screen bg-[hsl(220_28%_6%)] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[hsl(220_28%_6%)] flex items-center justify-center px-4 relative">
+      <Link href="/">
+        <a className="absolute top-6 left-6 w-10 h-10 rounded-xl border border-[hsl(220_18%_22%)] flex items-center justify-center text-white/50 hover:text-white hover:border-[#fbbf24]/40 transition-all hover:bg-white/5 group">
+          <ChevronLeft size={20} className="group-hover:-translate-x-0.5 transition-transform" />
+        </a>
+      </Link>
+
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2.5 justify-center mb-8">
           <svg width="36" height="36" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="8" fill="#fbbf24"/><circle cx="16" cy="16" r="4" fill="white" opacity="0.95"/></svg>
           <span className="font-black text-xl text-white">Solar<span className="text-[#fbbf24]">IQ</span></span>
         </div>
-        <div className="bg-[hsl(220_24%_9%)] border border-[hsl(220_18%_18%)] rounded-2xl p-8">
+        <div className="bg-[hsl(220_24%_9%)] border border-[hsl(220_18%_18%)] rounded-2xl p-8 shadow-2xl">
           <h2 className="font-bold text-white mb-1 text-center">Admin Login</h2>
           <p className="text-white/40 text-xs text-center mb-6">Manage projects, teams & inventory</p>
 
           <Button variant="outline" onClick={handleGoogleLogin} className="w-full mb-6 border-[hsl(220_18%_22%)] text-white hover:bg-white/5 font-bold flex items-center gap-2 transition-all">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1 .67-2.28 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.67-.35-1.39-.35-2.09s.13-1.42.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1 .67-2.28 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.67-.35-1.39-.35-2.09s.13-1.42.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
             Continue with Google
           </Button>
 
@@ -70,10 +78,26 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
           <form onSubmit={handleLogin} className="space-y-4">
             <div><label className="text-xs text-white/50 mb-1 block">Username</label>
               <Input value={u} onChange={e => setU(e.target.value)} className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white h-10" /></div>
-            <div><label className="text-xs text-white/50 mb-1 block">Password</label>
-              <Input value={p} onChange={e => setP(e.target.value)} type="password" className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white h-10" /></div>
+            <div>
+              <label className="text-xs text-white/50 mb-1 block">Password</label>
+              <div className="relative">
+                <Input 
+                  value={p} 
+                  onChange={e => setP(e.target.value)} 
+                  type={showP ? "text" : "password"} 
+                  className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white h-10 pr-10" 
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowP(!showP)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors"
+                >
+                  {showP ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
             {err && <p className="text-red-400 text-xs">{err}</p>}
-            <Button type="submit" disabled={loading} className="w-full bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold h-10">{loading ? "Logging in..." : "Login"}</Button>
+            <Button type="submit" disabled={loading} className="w-full bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold h-10 hover:brightness-110 solar-glow-sm transition-all">{loading ? "Logging in..." : "Login"}</Button>
           </form>
           <p className="text-center text-white/30 text-[10px] mt-6 leading-relaxed">Demo Admin: admin / solariq2026</p>
         </div>

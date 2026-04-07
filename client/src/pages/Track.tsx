@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import type { Project, Milestone, Update, MilestonePhoto, Signature, Quotation, Document, Payment } from "@shared/schema";
@@ -594,9 +594,16 @@ export default function TrackPage() {
       {/* Header */}
       <header className="bg-[hsl(220_24%_8%)] border-b border-[hsl(220_18%_14%)] px-4 py-3.5 sticky top-0 z-40">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <svg width="26" height="26" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="8" fill="#fbbf24" opacity="0.9"/><circle cx="16" cy="16" r="4" fill="white" opacity="0.95"/></svg>
-            <span className="font-bold text-sm">Solar<span className="text-[#fbbf24]">IQ</span></span>
+          <div className="flex items-center gap-3">
+            <Link href="/">
+              <a className="w-8 h-8 rounded-lg border border-[hsl(220_18%_22%)] flex items-center justify-center text-white/50 hover:text-white hover:border-[#fbbf24]/40 transition-all hover:bg-white/5">
+                <ChevronLeft size={16} />
+              </a>
+            </Link>
+            <div className="flex items-center gap-2.5">
+              <svg width="26" height="26" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="8" fill="#fbbf24" opacity="0.9"/><circle cx="16" cy="16" r="4" fill="white" opacity="0.95"/></svg>
+              <span className="font-bold text-sm">Solar<span className="text-[#fbbf24]">IQ</span></span>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-white/30 hidden sm:inline">{t.updatesEvery}</span>
