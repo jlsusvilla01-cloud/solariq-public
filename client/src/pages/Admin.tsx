@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import type { Project, Milestone, Update, Faq, Testimonial, PricingPlan, MilestonePhoto, Signature, NotificationPref, Quotation, Document, Payment, Inventory, Design, InsertDesign, Lead, Referral, Vendor, PurchaseOrder, Crew } from "@shared/schema";
+import type { Project, Milestone, Update, Faq, Testimonial, PricingPlan, MilestonePhoto, Signature, NotificationPref, Quotation, Document, Payment, Inventory, Design, InsertDesign, Lead, Referral, Vendor, PurchaseOrder, Crew, User } from "@shared/schema";
 import {
   LayoutDashboard, ClipboardList, Star, DollarSign, LogOut, Menu, X,
   Plus, Trash2, Edit2, Eye, EyeOff, Copy, CheckCircle2, Clock, Send, ChevronLeft,
@@ -780,6 +780,102 @@ function ProjectsTab({ adminName }: { adminName: string }) {
             </div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ── Users Tab ──
+function UsersTab() {
+  const { data: users = [], isLoading, refetch } = useQuery<User[]>({ 
+    queryKey: ["/api/admin/users"], 
+    queryFn: () => apiFetch("/api/admin/users") 
+  });
+  const [search, setSearch] = useState("");
+
+  const filtered = users.filter(u => 
+    u.name.toLowerCase().includes(search.toLowerCase()) || 
+    u.email.toLowerCase().includes(search.toLowerCase()) ||
+    (u.company || "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "trial": return <Badge className="bg-[#fbbf24]/10 text-[#fbbf24] border-[#fbbf24]/20">Trial</Badge>;
+      case "active": return <Badge className="bg-green-500/10 text-green-400 border-green-500/20">Active</Badge>;
+      case "expired": return <Badge className="bg-red-500/10 text-red-400 border-red-500/20">Expired</Badge>;
+      case "cancelled": return <Badge variant="outline" className="text-white/20 border-white/10">Cancelled</Badge>;
+      default: return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="relative w-full max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
+          <Input 
+            value={search} 
+            onChange={e => setSearch(e.target.value)} 
+            placeholder="Search by name, email, or company..." 
+            className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white h-9 pl-9 text-xs" 
+          />
+        </div>
+        <Button onClick={() => refetch()} variant="outline" className="border-white/10 text-white/50 h-9 text-xs hover:text-white">
+          <RefreshCw size={14} className={`mr-2 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+        </Button>
+      </div>
+
+      <div className="bg-[hsl(220_24%_9%)] border border-[hsl(220_18%_18%)] rounded-2xl overflow-hidden shadow-xl">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="border-b border-[hsl(220_18%_14%)] bg-white/5">
+              <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest">User / Company</th>
+              <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest">Email</th>
+              <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest">Status</th>
+              <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest">Trial End</th>
+              <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest">Plan</th>
+              <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest text-right">Registered</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-[hsl(220_18%_14%)]">
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-5 py-12 text-center text-white/20 text-xs italic">
+                  {isLoading ? "Loading users..." : "No users found."}
+                </td>
+              </tr>
+            ) : filtered.map(u => (
+              <tr key={u.id} className="hover:bg-white/5 transition-colors group">
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#fbbf24]/10 flex items-center justify-center text-[#fbbf24] font-black text-xs">
+                      {u.name[0]}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-white group-hover:text-[#fbbf24] transition-colors">{u.name}</div>
+                      <div className="text-[10px] text-white/30">{u.company || "Individual Contractor"}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-5 py-4 text-xs text-white/50">{u.email}</td>
+                <td className="px-5 py-4">{getStatusBadge(u.subscriptionStatus)}</td>
+                <td className="px-5 py-4">
+                  <div className="flex items-center gap-2 text-xs text-white/50">
+                    <Clock size={12} className="text-[#fbbf24]" />
+                    {new Date(u.trialEndDate).toLocaleDateString()}
+                  </div>
+                </td>
+                <td className="px-5 py-4">
+                  <span className="text-[10px] font-black text-white/30 uppercase">{u.subscriptionPlan || "N/A"}</span>
+                </td>
+                <td className="px-5 py-4 text-right text-[10px] text-white/20">
+                  {new Date(u.createdAt).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -2398,7 +2494,7 @@ export default function AdminPage() {
         { id: "service", label: "After-Sales Service", icon: RefreshCw },
       ]
     },
-    {
+            {
       group: "SUPPLY CHAIN",
       items: [
         { id: "inventory", label: "Inventory", icon: Package },
@@ -2437,7 +2533,7 @@ export default function AdminPage() {
     inventory: "Inventory Management", bom: "Bill of Materials", procurement: "Procurement",
     scheduling: "Crew Scheduling & Gantt",
     logistics: "Logistics & Fleet", hr: "HR & Payroll", finance: "Finance & Accounting",
-    compliance: "Compliance Calendar", tenants: "Multi-Tenant Accounts", pricing: "SaaS Pricing", faqs: "FAQ Manager",
+    compliance: "Compliance Calendar", tenants: "Multi-Tenant Accounts", users: "Users & Subscriptions", pricing: "SaaS Pricing", faqs: "FAQ Manager",
   };
 
   return (
@@ -2523,6 +2619,7 @@ export default function AdminPage() {
             {tab === "finance" && <FinanceTab />}
             {tab === "compliance" && <ComplianceTab />}
             {tab === "tenants" && <TenantsTab />}
+            {tab === "users" && <UsersTab />}
             {tab === "pricing" && <PricingTab />}
             {tab === "faqs" && <FaqTab />}
           </div>

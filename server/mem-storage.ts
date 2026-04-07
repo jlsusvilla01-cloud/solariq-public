@@ -368,4 +368,7 @@ export class MemStorage implements IStorage {
   async getProjectsByUserId(userId: number): Promise<any[]> {
     return Array.from(this.projects.values()).filter((p: any) => p.userId === userId);
   }
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
 }

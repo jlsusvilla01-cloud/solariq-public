@@ -216,4 +216,5 @@ export interface IStorage {
   updateUserSubscription(id: number, data: Partial<User>): Promise<User>;
   findUserByGoogleId(googleId: string): Promise<User | undefined>;
   getProjectsByUserId(userId: number): Promise<Project[]>;
+  getAllUsers(): Promise<User[]>;
 }

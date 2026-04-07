@@ -541,6 +541,10 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     res.json(await storage.getSiteSurveyByProject(+req.params.id));
   });
 
+  app.get("/api/admin/users", requireAuth, async (_req, res) => {
+    res.json(await storage.getAllUsers());
+  });
+
   app.post("/api/admin/projects/:id/survey", requireAuth, async (req, res) => {
     const existing = await storage.getSiteSurveyByProject(+req.params.id);
     if (existing) {

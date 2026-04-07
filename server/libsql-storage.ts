@@ -484,6 +484,9 @@ export class LibSQLStorage implements IStorage {
   async getProjectsByUserId(userId: number): Promise<Project[]> {
     return await db.select().from(projects).where(eq(projects.userId, userId)).all();
   }
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users).all();
+  }
 }
 
 export function getLibSQLDb() {
