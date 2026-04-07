@@ -6,6 +6,8 @@ import { Toaster } from "@/components/ui/toaster";
 import LandingPage from "@/pages/Landing";
 import TrackPage from "@/pages/Track";
 import AdminPage from "@/pages/Admin";
+import UserAuth from "@/pages/UserAuth";
+import UserDashboard from "@/pages/UserDashboard";
 import NotFound from "@/pages/not-found";
 
 export default function App() {
@@ -17,6 +19,9 @@ export default function App() {
           <Route path="/track/:token" component={TrackPage} />
           <Route path="/admin" component={AdminPage} />
           <Route path="/admin/:tab" component={AdminPage} />
+          <Route path="/signin">{() => <UserAuth mode="signin" />}</Route>
+          <Route path="/signup">{() => <UserAuth mode="signup" />}</Route>
+          <Route path="/dashboard" component={UserDashboard} />
           <Route component={NotFound} />
         </Switch>
       </Router>

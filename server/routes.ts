@@ -548,5 +548,207 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     }
     res.status(201).json(await storage.createSiteSurvey({ ...req.body, projectId: +req.params.id }));
   });
+
+  // ══════════════════════════════════════════════════════════════
+  // ── USER SELF-SERVICE AUTH & ROUTES ──
+  // ══════════════════════════════════════════════════════════════
+
+  // ── User Registration ──
+  app.post("/api/user/register", async (req, res) => {
+    try {
+      const { email, password, name, company, phone } = req.body;
+      if (!email || !password || !name) {
+        return res.status(400).json({ error: "Name, email, and password are required." });
+      }
+      // Check if email already exists
+      const existing = await storage.getUserByEmail(email);
+      if (existing) {
+        return res.status(409).json({ error: "An account with this email already exists." });
+      }
+      const now = new Date();
+      const trialEnd = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000); // 15 days
+      const user = await storage.createUser({
+        email,
+        password, // In production, hash this
+        name,
+        company: company || null,
+        phone: phone || null,
+        googleId: null,
+        trialStartDate: now.toISOString(),
+        trialEndDate: trialEnd.toISOString(),
+        subscriptionStatus: "trial",
+        subscriptionPlan: null,
+        billingCycle: null,
+        subscriptionStartDate: null,
+        createdAt: now.toISOString(),
+      });
+      const token = Buffer.from(`user:${user.id}:${user.email}`).toString("base64");
+      res.status(201).json({
+        ok: true,
+        token,
+        user: { id: user.id, name: user.name, email: user.email, company: user.company, trialEndDate: user.trialEndDate, subscriptionStatus: user.subscriptionStatus },
+      });
+    } catch (e: any) {
+      console.error("Registration error:", e);
+      res.status(500).json({ error: "Registration failed: " + e.message });
+    }
+  });
+
+  // ── User Login ──
+  app.post("/api/user/login", async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const user = await storage.getUserByEmailAndPassword(email, password);
+      if (!user) return res.status(401).json({ error: "Invalid email or password." });
+
+      // Check/update trial expiration
+      const now = new Date();
+      const trialEnd = new Date(user.trialEndDate);
+      if (user.subscriptionStatus === "trial" && now > trialEnd) {
+        await storage.updateUserSubscription(user.id, { subscriptionStatus: "expired" });
+        user.subscriptionStatus = "expired";
+      }
+
+      const token = Buffer.from(`user:${user.id}:${user.email}`).toString("base64");
+      res.json({
+        ok: true,
+        token,
+        user: {
+          id: user.id, name: user.name, email: user.email, company: user.company,
+          trialStartDate: user.trialStartDate, trialEndDate: user.trialEndDate,
+          subscriptionStatus: user.subscriptionStatus, subscriptionPlan: user.subscriptionPlan,
+          billingCycle: user.billingCycle,
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "Login failed." });
+    }
+  });
+
+  // ── User Auth Middleware ──
+  const requireUser = async (req: any, res: any, next: any) => {
+    try {
+      const auth = req.headers.authorization;
+      if (!auth?.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
+      const decoded = Buffer.from(auth.slice(7), "base64").toString();
+      const parts = decoded.split(":");
+      if (parts[0] !== "user" || !parts[1]) return res.status(401).json({ error: "Invalid token" });
+
+      const userId = parseInt(parts[1]);
+      const user = await storage.getUserById(userId);
+      if (!user) return res.status(401).json({ error: "User not found" });
+
+      // Check subscription status
+      const now = new Date();
+      const trialEnd = new Date(user.trialEndDate);
+      if (user.subscriptionStatus === "trial" && now > trialEnd) {
+        await storage.updateUserSubscription(user.id, { subscriptionStatus: "expired" });
+        user.subscriptionStatus = "expired";
+      }
+
+      req.userId = user.id;
+      req.user = user;
+      next();
+    } catch (e) {
+      res.status(401).json({ error: "Authentication failed" });
+    }
+  };
+
+  // ── Get Current User Profile ──
+  app.get("/api/user/me", requireUser, async (req: any, res) => {
+    const user = req.user;
+    res.json({
+      id: user.id, name: user.name, email: user.email, company: user.company,
+      trialStartDate: user.trialStartDate, trialEndDate: user.trialEndDate,
+      subscriptionStatus: user.subscriptionStatus, subscriptionPlan: user.subscriptionPlan,
+      billingCycle: user.billingCycle,
+    });
+  });
+
+  // ── Subscribe (Mock Payment) ──
+  app.post("/api/user/subscribe", requireUser, async (req: any, res) => {
+    try {
+      const { plan, billingCycle } = req.body;
+      if (!plan || !billingCycle) return res.status(400).json({ error: "Plan and billing cycle required." });
+
+      const updated = await storage.updateUserSubscription(req.userId, {
+        subscriptionStatus: "active",
+        subscriptionPlan: plan,
+        billingCycle,
+        subscriptionStartDate: new Date().toISOString(),
+      });
+      res.json({
+        ok: true,
+        user: {
+          id: updated.id, name: updated.name, email: updated.email,
+          subscriptionStatus: updated.subscriptionStatus, subscriptionPlan: updated.subscriptionPlan,
+          billingCycle: updated.billingCycle,
+        },
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: "Subscription failed: " + e.message });
+    }
+  });
+
+  // ── User Projects (with trial/subscription gate) ──
+  const requireActiveUser = async (req: any, res: any, next: any) => {
+    await requireUser(req, res, () => {
+      if (req.user?.subscriptionStatus === "expired") {
+        return res.status(402).json({ error: "Trial expired. Please subscribe to continue.", subscriptionStatus: "expired" });
+      }
+      next();
+    });
+  };
+
+  app.get("/api/user/projects", requireUser, async (req: any, res) => {
+    // Allow viewing projects even when expired (to show paywall context)
+    const projects = await storage.getProjectsByUserId(req.userId);
+    res.json(projects);
+  });
+
+  app.post("/api/user/projects", requireActiveUser, async (req: any, res) => {
+    const data = { ...req.body, shareToken: genToken(), userId: req.userId, createdAt: new Date().toISOString() };
+    const proj = await storage.createProject(data);
+    // Create default milestones
+    const defaults = [
+      ["Site Survey & Assessment", "Roof assessment, shading analysis, structural review", "survey", 1],
+      ["System Design", "Panel layout, inverter selection, electrical design", "design", 2],
+      ["Permit Submission", "Building and electrical permits submitted", "permitting", 3],
+      ["Permit Approval", "All permits and utility interconnection approved", "permitting", 4],
+      ["Material Procurement", "Panels, inverter, racking, and wiring delivered", "procurement", 5],
+      ["Racking Installation", "Roof mounts and racking system installed", "installation", 6],
+      ["Panel Installation", "Solar panels mounted and connected", "installation", 7],
+      ["Inverter & Electrical Work", "Inverter, wiring, conduit, and electrical connections", "installation", 8],
+      ["Final Inspection", "Local authority and utility final inspection", "inspection", 9],
+      ["Commissioning & Handover", "System testing, monitoring setup, client walkthrough", "commissioned", 10],
+    ];
+    for (const [t, d, p, o] of defaults) {
+      await storage.createMilestone({ projectId: proj.id, title: t as string, description: d as string, phase: p as string, sortOrder: o as number, status: "pending" });
+    }
+    await storage.createUpdate({ projectId: proj.id, message: `Welcome ${proj.clientName}! Your solar installation project has been started.`, type: "update", postedBy: "SolarIQ" });
+    res.status(201).json(proj);
+  });
+
+  // User can view their project details via share token
+  app.get("/api/user/projects/:id", requireUser, async (req: any, res) => {
+    const project = await storage.getProject(+req.params.id);
+    if (!project || (project as any).userId !== req.userId) return res.status(404).json({ error: "Project not found." });
+    const ms = await storage.getMilestonesByProject(project.id);
+    const upd = await storage.getUpdatesByProject(project.id);
+    res.json({ project, milestones: ms, updates: upd });
+  });
+
+  // User can update milestones on their own projects
+  app.patch("/api/user/milestones/:id", requireActiveUser, async (req: any, res) => {
+    const data = { ...req.body };
+    if (data.status === "completed" && !data.completedAt) data.completedAt = new Date().toISOString();
+    const updated = await storage.updateMilestone(+req.params.id, data);
+    // Recalculate progress
+    const allMs = await storage.getMilestonesByProject(updated!.projectId);
+    const done = allMs.filter(m => m.status === "completed").length;
+    const pct = allMs.length ? Math.round((done / allMs.length) * 100) : 0;
+    await storage.updateProject(updated!.projectId, { overallProgress: pct, status: updated!.phase });
+    res.json(updated);
+  });
 }
 

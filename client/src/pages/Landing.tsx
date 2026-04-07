@@ -70,10 +70,10 @@ function Navbar({ theme, setTheme }: { theme: Theme, setTheme: (t: Theme) => voi
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Link href="/admin"><a className="text-sm text-white/70 hover:text-white transition-colors px-3 py-1.5 focus:outline-none">Sign In</a></Link>
-          <button onClick={() => scrollTo("pricing")} className="bg-[#fbbf24] text-[hsl(220_28%_6%)] text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition-all solar-glow-sm">
-            Sign Up
-          </button>
+          <Link href="/signin"><a className="text-sm text-white/70 hover:text-white transition-colors px-3 py-1.5 focus:outline-none">Sign In</a></Link>
+          <Link href="/signup"><a className="bg-[#fbbf24] text-[hsl(220_28%_6%)] text-sm font-semibold px-4 py-2 rounded-lg hover:brightness-110 transition-all solar-glow-sm inline-block">
+            Start Free Trial
+          </a></Link>
         </div>
         <button onClick={() => setOpen(v => !v)} className="md:hidden text-white/70 hover:text-white">
           {open ? <X size={22} /> : <Menu size={22} />}
@@ -85,8 +85,8 @@ function Navbar({ theme, setTheme }: { theme: Theme, setTheme: (t: Theme) => voi
             <button key={id} onClick={() => scrollTo(id)} className="block w-full text-left text-sm text-white/70 hover:text-white py-1">{l}</button>
           ))}
           <div className="flex flex-col gap-2 pt-2 border-t border-white/5">
-            <Link href="/admin"><a className="block text-sm text-white/70 py-1">Sign In</a></Link>
-            <button onClick={() => scrollTo("pricing")} className="block text-left text-sm text-[#fbbf24] py-1 font-bold">Sign Up</button>
+            <Link href="/signin"><a className="block text-sm text-white/70 py-1">Sign In</a></Link>
+            <Link href="/signup"><a className="block text-left text-sm text-[#fbbf24] py-1 font-bold">Start Free Trial</a></Link>
           </div>
         </div>
       )}
@@ -342,7 +342,7 @@ function Pricing() {
         <div className="text-center mb-10">
           <Badge className="mb-4 bg-[#fbbf24]/10 text-[#fbbf24] border border-[#fbbf24]/25 text-xs">Simple Pricing</Badge>
           <h2 className="text-3xl sm:text-4xl font-black text-white mb-4">Start free, scale as<br/><span className="gradient-text">your business grows</span></h2>
-          <p className="text-white/50 text-sm mb-8">All plans include a 14-day free trial. No credit card required.</p>
+          <p className="text-white/50 text-sm mb-8">All plans include a 15-day free trial. No credit card required.</p>
           
           <div className="flex items-center justify-center gap-4">
             <span className={`text-sm ${billingCycle === "month" ? "text-white font-bold" : "text-white/40"}`}>Monthly</span>
@@ -383,9 +383,11 @@ function Pricing() {
                     </li>
                   ))}
                 </ul>
-                <button className={`w-full py-3 rounded-xl font-semibold text-sm transition-all ${plan.highlighted ? "bg-[#fbbf24] text-[hsl(220_28%_6%)] hover:brightness-110 solar-glow-sm" : "border border-[hsl(220_18%_28%)] text-white hover:border-[#fbbf24]/40 hover:text-[#fbbf24]"}`}>
-                  {plan.ctaLabel}
-                </button>
+                <Link href="/signup">
+                  <a className={`w-full py-3 rounded-xl font-semibold text-sm transition-all block text-center ${plan.highlighted ? "bg-[#fbbf24] text-[hsl(220_28%_6%)] hover:brightness-110 solar-glow-sm" : "border border-[hsl(220_18%_28%)] text-white hover:border-[#fbbf24]/40 hover:text-[#fbbf24]"}`}>
+                    Start Free Trial
+                  </a>
+                </Link>
               </div>
             );
           })}
@@ -423,7 +425,10 @@ function Footer() {
           ))}
         </div>
         <div className="pt-6 border-t border-[hsl(220_18%_12%)] flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-white/30 text-xs">© 2026 SolarIQ. All rights reserved. Built for Filipino solar contractors.</p>
+          <div className="flex items-center gap-4">
+            <p className="text-white/30 text-xs">© 2026 SolarIQ. All rights reserved. Built for Filipino solar contractors.</p>
+            <Link href="/admin"><a className="text-white/15 text-[10px] hover:text-white/30 transition-colors whitespace-nowrap">Admin Portal</a></Link>
+          </div>
           <a href="https://www.perplexity.ai/computer" target="_blank" rel="noopener noreferrer" className="text-white/25 text-xs hover:text-white/50 transition-colors">
             Created with Perplexity Computer
           </a>

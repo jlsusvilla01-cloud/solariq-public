@@ -1,4 +1,4 @@
-import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications, solarReadings, siteSurveys } from "@shared/schema";
+import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications, solarReadings, siteSurveys, users } from "@shared/schema";
 import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading, SiteSurvey, InsertSiteSurvey } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
@@ -452,6 +452,37 @@ export class LibSQLStorage implements IStorage {
   async updateSiteSurvey(id: number, data: Partial<SiteSurvey>) {
     const res = await db.update(siteSurveys).set(data).where(eq(siteSurveys.id, id)).returning().all();
     return res[0];
+  }
+
+  // ── Users (Self-Service) ──
+  async createUser(data: InsertUser): Promise<User> {
+    const res = await db.insert(users).values({ ...data, createdAt: new Date().toISOString() }).returning().all();
+    return res[0];
+  }
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const res = await db.select().from(users).where(eq(users.email, email)).all();
+    return res[0];
+  }
+  async getUserById(id: number): Promise<User | undefined> {
+    const res = await db.select().from(users).where(eq(users.id, id)).all();
+    return res[0];
+  }
+  async getUserByEmailAndPassword(email: string, password: string): Promise<User | undefined> {
+    // In production, we'd use bcrypt, but keeping it simple as per earlier logic
+    const res = await db.select().from(users).where(eq(users.email, email)).all();
+    const user = res.find((u: any) => u.password === password);
+    return user;
+  }
+  async updateUserSubscription(id: number, data: Partial<User>): Promise<User> {
+    const res = await db.update(users).set(data).where(eq(users.id, id)).returning().all();
+    return res[0];
+  }
+  async findUserByGoogleId(googleId: string): Promise<User | undefined> {
+    const res = await db.select().from(users).where(eq(users.googleId, googleId)).all();
+    return res[0];
+  }
+  async getProjectsByUserId(userId: number): Promise<Project[]> {
+    return await db.select().from(projects).where(eq(projects.userId, userId)).all();
   }
 }
 

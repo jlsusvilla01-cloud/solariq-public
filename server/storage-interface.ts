@@ -27,7 +27,8 @@ import type {
   Schedule, InsertSchedule, 
   Notification, InsertNotification, 
   Admin, SolarReading, InsertReading, 
-  SiteSurvey, InsertSiteSurvey 
+  SiteSurvey, InsertSiteSurvey,
+  User, InsertUser
 } from "@shared/schema";
 
 export interface IStorage {
@@ -206,4 +207,13 @@ export interface IStorage {
   getSiteSurveyByProject(pid: number): Promise<SiteSurvey | null>;
   createSiteSurvey(data: InsertSiteSurvey): Promise<SiteSurvey>;
   updateSiteSurvey(id: number, data: Partial<SiteSurvey>): Promise<SiteSurvey>;
+
+  // Users (Self-Service)
+  createUser(data: InsertUser): Promise<User>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserById(id: number): Promise<User | undefined>;
+  getUserByEmailAndPassword(email: string, password: string): Promise<User | undefined>;
+  updateUserSubscription(id: number, data: Partial<User>): Promise<User>;
+  findUserByGoogleId(googleId: string): Promise<User | undefined>;
+  getProjectsByUserId(userId: number): Promise<Project[]>;
 }

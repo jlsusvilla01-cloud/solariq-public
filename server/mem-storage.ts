@@ -28,7 +28,8 @@ import type {
   Schedule, InsertSchedule, 
   Notification, InsertNotification, 
   Admin, SolarReading, InsertReading, 
-  SiteSurvey, InsertSiteSurvey 
+  SiteSurvey, InsertSiteSurvey,
+  User, InsertUser
 } from "@shared/schema";
 
 export class MemStorage implements IStorage {
@@ -63,13 +64,14 @@ export class MemStorage implements IStorage {
   private leads = new Map<number, Lead>();
   private serviceJobs = new Map<number, ServiceJob>();
   private clientMessages = new Map<number, ClientMessage>();
+  private users = new Map<number, User>();
 
   private currentIds: Record<string, number> = {
     projects: 1, milestones: 1, updates: 1, faqs: 1, testimonials: 1, pricing: 1,
     photos: 1, signatures: 1, notifs: 1, admins: 1, readings: 1, surveys: 1,
     quotations: 1, documents: 1, payments: 1, inventory: 1, crews: 1, tenants: 1,
     employees: 1, timesheets: 1, journals: 1, compliance: 1, bom: 1, stocks: 1,
-    schedules: 1, notifications: 1, designs: 1, leads: 1, serviceJobs: 1, clientMessages: 1
+    schedules: 1, notifications: 1, designs: 1, leads: 1, serviceJobs: 1, clientMessages: 1, users: 1
   };
 
   constructor() {
@@ -336,4 +338,34 @@ export class MemStorage implements IStorage {
   async getSiteSurveyByProject(pid: number) { return Array.from(this.siteSurveys.values()).find(s => s.projectId === pid) || null; }
   async createSiteSurvey(data: any) { const id = this.currentIds.surveys++; const s = {...data, id}; this.siteSurveys.set(id, s); return s; }
   async updateSiteSurvey(id: number, data: any) { const s = this.siteSurveys.get(id); const u = {...s, ...data}; this.siteSurveys.set(id, u); return u; }
+
+  // ── Users (Self-Service) ──
+  async createUser(data: InsertUser): Promise<User> {
+    const id = this.currentIds.users++;
+    const user: User = { ...data, id, subscriptionStatus: data.subscriptionStatus || "trial", subscriptionPlan: data.subscriptionPlan || null, billingCycle: data.billingCycle || null, subscriptionStartDate: data.subscriptionStartDate || null, company: data.company || null, phone: data.phone || null, googleId: data.googleId || null };
+    this.users.set(id, user);
+    return user;
+  }
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.email === email);
+  }
+  async getUserById(id: number): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+  async getUserByEmailAndPassword(email: string, password: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.email === email && u.password === password);
+  }
+  async updateUserSubscription(id: number, data: Partial<User>): Promise<User> {
+    const user = this.users.get(id);
+    if (!user) throw new Error("User not found");
+    const updated = { ...user, ...data };
+    this.users.set(id, updated);
+    return updated;
+  }
+  async findUserByGoogleId(googleId: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.googleId === googleId);
+  }
+  async getProjectsByUserId(userId: number): Promise<any[]> {
+    return Array.from(this.projects.values()).filter((p: any) => p.userId === userId);
+  }
 }

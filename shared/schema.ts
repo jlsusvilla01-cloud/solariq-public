@@ -39,6 +39,8 @@ export const projects = sqliteTable("projects", {
   // Net Metering (NEW)
   netMeteringStatus: text("net_metering_status").default("pending"), // pending, applied, surveyed, nma_signed, meter_installed, completed
   netMeteringNotes: text("net_metering_notes"),
+  // User ownership (for self-service users)
+  userId: integer("user_id"), // null = admin-created, set = user-owned
 });
 
 export const insertProjectSchema = createInsertSchema(projects).omit({ id: true, createdAt: true });
@@ -185,6 +187,28 @@ export const insertAdminSchema = createInsertSchema(admins).omit({ id: true });
 export type InsertAdmin = typeof admins.$inferInsert;
 export type Admin = typeof admins.$inferSelect;
 
+// ── Self-Service Users (Contractors / Trial Users) ──
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull(),
+  password: text("password").notNull(),
+  name: text("name").notNull(),
+  company: text("company"),
+  phone: text("phone"),
+  googleId: text("google_id"),
+  // Trial & Subscription
+  trialStartDate: text("trial_start_date").notNull(),
+  trialEndDate: text("trial_end_date").notNull(),
+  subscriptionStatus: text("subscription_status").notNull().default("trial"), // trial | active | expired | cancelled
+  subscriptionPlan: text("subscription_plan"), // starter | professional | enterprise
+  billingCycle: text("billing_cycle"), // month | year
+  subscriptionStartDate: text("subscription_start_date"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertUserSchema = createInsertSchema(users).omit({ id: true });
+export type InsertUser = typeof users.$inferInsert;
+export type User = typeof users.$inferSelect;
 
 // ── NEW: AI Designs ──
 export const designs = sqliteTable("designs", {
