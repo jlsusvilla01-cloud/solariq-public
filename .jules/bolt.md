@@ -1,0 +1,3 @@
+## 2024-03-14 - Code splitting routes reduces initial load bundle size significantly
+**Learning:** The application had all route pages (`LandingPage`, `TrackPage`, `AdminPage`, `NotFound`) statically imported in `App.tsx`, causing all routes to be bundled into a single large file (~910kB unminified main bundle). Using `React.lazy` on routing pages effectively splits the code into smaller chunks, resulting in the main JS bundle shrinking to ~226kB.
+**Action:** When working on React applications with `wouter` or `react-router`, always check if top-level routes are statically imported and implement code-splitting using `React.lazy` to speed up initial page load.
