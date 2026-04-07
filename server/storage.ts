@@ -2,7 +2,8 @@ import { IStorage } from "./storage-interface.js";
 import { MemStorage } from "./mem-storage.js";
 
 const isVercel = process.env.VERCEL === "1" || !!process.env.VERCEL;
-const useMock = isVercel && !process.env.DATABASE_URL;
+const useFirebase = !!process.env.FIREBASE_PROJECT_ID;
+const useMock = isVercel && !process.env.DATABASE_URL && !useFirebase;
 
 let storage: IStorage;
 let db: any;
@@ -10,18 +11,24 @@ let client: any;
 
 /**
  * Initializes the database storage system.
- * Uses dynamic imports to isolate native dependencies (@libsql/client)
- * which cause 500 errors in the Vercel serverless environment.
+ * Priority: Firebase > LibSQL > Memory (Vercel Fallback)
  */
 async function initDb() {
-  if (useMock) {
+  if (useFirebase) {
+    console.log("Initializing Firebase Firestore Storage");
+    try {
+      const { FirebaseStorage } = await import("./firebase-storage.js");
+      storage = new FirebaseStorage();
+    } catch (err) {
+      console.error("Failed to load Firebase storage, falling back to Memory:", err);
+      storage = new MemStorage();
+    }
+  } else if (useMock) {
     console.log("Initializing In-Memory Storage (Vercel Fallback)");
     storage = new MemStorage();
-    // In mock mode, db and client remain undefined
   } else {
     console.log("Initializing LibSQL Storage");
     try {
-      // The nuclear option: eval('import(...)') hides the import from Vercel's NFT/esbuild tracer entirely
       const module = await eval('import("./libsql-storage.js")');
       const { LibSQLStorage, getLibSQLDb } = module;
       storage = new LibSQLStorage();
