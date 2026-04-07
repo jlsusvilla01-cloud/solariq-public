@@ -1,0 +1,3 @@
+## 2024-04-01 - React Code Splitting Reduces Load Time
+**Learning:** In a single-page React app primarily built with wouter and tanstack query, code splitting at the route level makes a dramatic difference. The single bundle size issue (a 500kb warning resulting from all pages combined) can be easily fixed without losing functionality by lazy loading main route components (`Track`, `Admin`, `Landing`).
+**Action:** Always start a React project with code splitting via `React.lazy` and `<Suspense>` on high-level route boundaries to improve initial download speeds and avoid monolithic bundles from the get-go.
