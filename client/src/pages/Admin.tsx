@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -2067,10 +2067,24 @@ function TenantsTab() {
 
 // ── Elite Feature 1: Analytics & BI ──
 function AnalyticsTab({ projects }: { projects: any[] }) {
-  const totalRevenue = projects.reduce((s: number, p: any) => s + (p.contractValue || 0), 0);
-  const completed = projects.filter((p: any) => p.status === "commissioned").length;
-  const avgProgress = projects.length ? Math.round(projects.reduce((s: number, p: any) => s + (p.overallProgress || 0), 0) / projects.length) : 0;
-  const totalSavings = projects.reduce((s: number, p: any) => s + (p.totalLifetimeSavings || 0), 0);
+  // ⚡ Bolt: Memoize and consolidate 4 array iterations (O(4n)) into a single O(n) pass
+  const { totalRevenue, completed, avgProgress, totalSavings } = useMemo(() => {
+    let rev = 0, comp = 0, progSum = 0, sav = 0;
+    for (let i = 0; i < projects.length; i++) {
+      const p = projects[i];
+      rev += p.contractValue || 0;
+      if (p.status === "commissioned") comp++;
+      progSum += p.overallProgress || 0;
+      sav += p.totalLifetimeSavings || 0;
+    }
+    return {
+      totalRevenue: rev,
+      completed: comp,
+      avgProgress: projects.length ? Math.round(progSum / projects.length) : 0,
+      totalSavings: sav
+    };
+  }, [projects]);
+
   const kpis = [
     { label: "Total Revenue", value: `₱${(totalRevenue / 1000).toFixed(0)}K`, sub: `${projects.length} contracts`, color: "#fbbf24" },
     { label: "Commissioned", value: String(completed), sub: "fully complete", color: "#22d3ee" },
