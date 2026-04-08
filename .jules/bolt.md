@@ -1,0 +1,3 @@
+## 2024-04-08 - Avoid Chained Array Methods for Derived State in Dashboard Components
+**Learning:** React components that render dashboards often need multiple derived metrics from the same dataset (e.g., total revenue, completed count, average progress, total savings). Using chained array methods (`.reduce()`, `.filter()`) inline inside a render loop means O(M*N) iterations (where M is number of metrics and N is the dataset size) running on every single render.
+**Action:** Consolidate these multiple passes into a single `for` loop (O(n)) and wrap it in `useMemo` with the dataset as the dependency. This ensures the heavy array processing is only executed when the dataset actually changes.
