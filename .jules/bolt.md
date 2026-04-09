@@ -1,0 +1,3 @@
+## 2024-05-18 - Avoid Sequential I/O for Independent DB Queries
+**Learning:** In endpoints that require gathering data from multiple tables (e.g., fetching a project along with its milestones, updates, photos, etc.), issuing sequential database queries (`await db.get(...)` one after another) introduces significant latency as each query waits for the previous to complete. This is especially impactful in high-traffic endpoints or slow networks.
+**Action:** Always group independent database read operations using `Promise.all(...)` to execute them concurrently, reducing the total DB fetch time from the sum of all query times to the maximum of any single query time.
