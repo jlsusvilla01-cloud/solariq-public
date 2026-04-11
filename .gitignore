@@ -8,3 +8,4 @@ dist
 tsc.txt
 tsc_errors.txt
 .DS_Store
+*.log
