@@ -83,13 +83,18 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.get("/api/track/:token", async (req, res) => {
     const project = await storage.getProjectByToken(req.params.token);
     if (!project) return res.status(404).json({ error: "Project not found. Check your link." });
-    const ms = await storage.getMilestonesByProject(project.id);
-    const upd = await storage.getUpdatesByProject(project.id);
-    const photos = await storage.getPhotosByProject(project.id);
-    const sigs = await storage.getSignaturesByProject(project.id);
-    const qts = await storage.getQuotationsByProject(project.id);
-    const docs = await storage.getDocumentsByProject(project.id);
-    const pays = await storage.getPaymentsByProject(project.id);
+
+    // ⚡ Bolt: Grouped independent database queries using Promise.all for concurrent execution
+    const [ms, upd, photos, sigs, qts, docs, pays] = await Promise.all([
+      storage.getMilestonesByProject(project.id),
+      storage.getUpdatesByProject(project.id),
+      storage.getPhotosByProject(project.id),
+      storage.getSignaturesByProject(project.id),
+      storage.getQuotationsByProject(project.id),
+      storage.getDocumentsByProject(project.id),
+      storage.getPaymentsByProject(project.id)
+    ]);
+
     res.json({
       project,
       milestones: ms.sort((a, b) => a.sortOrder - b.sortOrder),
@@ -433,9 +438,13 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     const { token, pin } = req.body;
     const project = await storage.getProjectByTokenAndPin(token, pin);
     if (!project) return res.status(401).json({ error: "Invalid PIN or link." });
-    const ms = await storage.getMilestonesByProject(project.id);
-    const docs = await storage.getDocumentsByProject(project.id);
-    const pays = await storage.getPaymentsByProject(project.id);
+
+    // ⚡ Bolt: Grouped independent database queries using Promise.all for concurrent execution
+    const [ms, docs, pays] = await Promise.all([
+      storage.getMilestonesByProject(project.id),
+      storage.getDocumentsByProject(project.id),
+      storage.getPaymentsByProject(project.id)
+    ]);
     res.json({ project, milestones: ms, documents: docs, payments: pays });
   });
   app.get("/api/admin/projects/:id/messages", requireAuth, async (req, res) => res.json(await storage.getClientMessages(+req.params.id)));
@@ -737,8 +746,12 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.get("/api/user/projects/:id", requireUser, async (req: any, res) => {
     const project = await storage.getProject(+req.params.id);
     if (!project || (project as any).userId !== req.userId) return res.status(404).json({ error: "Project not found." });
-    const ms = await storage.getMilestonesByProject(project.id);
-    const upd = await storage.getUpdatesByProject(project.id);
+
+    // ⚡ Bolt: Grouped independent database queries using Promise.all for concurrent execution
+    const [ms, upd] = await Promise.all([
+      storage.getMilestonesByProject(project.id),
+      storage.getUpdatesByProject(project.id)
+    ]);
     res.json({ project, milestones: ms, updates: upd });
   });
 
