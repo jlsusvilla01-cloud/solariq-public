@@ -83,13 +83,19 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.get("/api/track/:token", async (req, res) => {
     const project = await storage.getProjectByToken(req.params.token);
     if (!project) return res.status(404).json({ error: "Project not found. Check your link." });
-    const ms = await storage.getMilestonesByProject(project.id);
-    const upd = await storage.getUpdatesByProject(project.id);
-    const photos = await storage.getPhotosByProject(project.id);
-    const sigs = await storage.getSignaturesByProject(project.id);
-    const qts = await storage.getQuotationsByProject(project.id);
-    const docs = await storage.getDocumentsByProject(project.id);
-    const pays = await storage.getPaymentsByProject(project.id);
+
+    // Optimization: Group independent I/O operations using Promise.all
+    // to execute concurrently, mitigating sequential latency bottlenecks.
+    const [ms, upd, photos, sigs, qts, docs, pays] = await Promise.all([
+      storage.getMilestonesByProject(project.id),
+      storage.getUpdatesByProject(project.id),
+      storage.getPhotosByProject(project.id),
+      storage.getSignaturesByProject(project.id),
+      storage.getQuotationsByProject(project.id),
+      storage.getDocumentsByProject(project.id),
+      storage.getPaymentsByProject(project.id)
+    ]);
+
     res.json({
       project,
       milestones: ms.sort((a, b) => a.sortOrder - b.sortOrder),
