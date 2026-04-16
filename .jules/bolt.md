@@ -1,0 +1,3 @@
+## 2025-01-20 - Sequential DB latency bottleneck in API Endpoints
+**Learning:** Sequential await calls for independent database reads (e.g. `storage.getMilestonesByProject`, `storage.getUpdatesByProject`) can accumulate significant network/I/O latency, delaying the overall API response. In `GET /api/track/:token`, 7 independent queries were executed sequentially, causing unnecessary slowdowns.
+**Action:** When fetching or inserting multiple independent resources, group the promises using `Promise.all([query1, query2, ...])` to run them concurrently, effectively changing the latency overhead from O(N) to O(1) relative to DB response times.
