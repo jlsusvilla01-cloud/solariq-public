@@ -1,0 +1,3 @@
+## 2026-04-17 - Sequential DB Fetches Bottleneck
+**Learning:** Found multiple route handlers making sequential `await` calls for independent database collections (e.g., getting project details, milestones, updates, etc. linearly). This results in an N+1-like latency bottleneck where the total response time equals the sum of all queries, rather than the longest single query.
+**Action:** Always group independent data fetching calls, especially within robust generic ORMs or generalized data access objects, utilizing `Promise.all()` to retrieve relation resources concurrently to eliminate redundant wait times.
