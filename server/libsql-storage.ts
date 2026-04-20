@@ -419,9 +419,13 @@ export class LibSQLStorage implements IStorage {
         timestamp: time.toISOString(),
       });
     }
-    for (const r of readings) {
-      await this.createReading(r);
+
+    // ⚡ Bolt: Replaced sequential inserts with a single bulk insert
+    // Reduces N+1 queries from 48 round trips to 1, cutting database latency significantly.
+    if (readings.length > 0) {
+      await db.insert(solarReadings).values(readings).run();
     }
+
     // Set project status to online
     await db.update(projects).set({ monitoringStatus: "online" }).where(eq(projects.id, pid));
     return readings.length;
