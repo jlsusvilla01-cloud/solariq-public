@@ -239,9 +239,13 @@ export async function registerRoutes(httpServer: Server, app: Express) {
       ["Final Inspection", "Local authority and utility final inspection", "inspection", 9],
       ["Commissioning & Handover", "System testing, monitoring setup, client walkthrough", "commissioned", 10],
     ];
-    for (const [t, d, p, o] of defaults) {
-      await storage.createMilestone({ projectId: proj.id, title: t as string, description: d as string, phase: p as string, sortOrder: o as number, status: "pending" });
-    }
+    // ⚡ Bolt Optimization: Batch independent milestone inserts using Promise.all
+    // Expected impact: ~10x faster milestone creation by eliminating N+1 sequential latency roundtrips
+    await Promise.all(
+      defaults.map(([t, d, p, o]) =>
+        storage.createMilestone({ projectId: proj.id, title: t as string, description: d as string, phase: p as string, sortOrder: o as number, status: "pending" })
+      )
+    );
     await storage.createUpdate({ projectId: proj.id, message: `Welcome ${proj.clientName}! Your solar installation project has been started. We'll keep you updated every step of the way.`, type: "update", postedBy: "SolarIQ" });
     // Set up notif prefs from project email
     if (proj.clientEmail) {
@@ -726,9 +730,13 @@ export async function registerRoutes(httpServer: Server, app: Express) {
       ["Final Inspection", "Local authority and utility final inspection", "inspection", 9],
       ["Commissioning & Handover", "System testing, monitoring setup, client walkthrough", "commissioned", 10],
     ];
-    for (const [t, d, p, o] of defaults) {
-      await storage.createMilestone({ projectId: proj.id, title: t as string, description: d as string, phase: p as string, sortOrder: o as number, status: "pending" });
-    }
+    // ⚡ Bolt Optimization: Batch independent milestone inserts using Promise.all
+    // Expected impact: ~10x faster milestone creation by eliminating N+1 sequential latency roundtrips
+    await Promise.all(
+      defaults.map(([t, d, p, o]) =>
+        storage.createMilestone({ projectId: proj.id, title: t as string, description: d as string, phase: p as string, sortOrder: o as number, status: "pending" })
+      )
+    );
     await storage.createUpdate({ projectId: proj.id, message: `Welcome ${proj.clientName}! Your solar installation project has been started.`, type: "update", postedBy: "SolarIQ" });
     res.status(201).json(proj);
   });
