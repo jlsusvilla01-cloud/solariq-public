@@ -1,0 +1,3 @@
+## 2026-04-24 - N+1 Sequential DB Roundtrips in Loops
+**Learning:** Found several places where sequential `for` loops iterate over arrays and block on individual `await` operations to write to the database (e.g. creating 10 default milestones during project creation, generating 48 mock readings, updating weather for all projects). These single inserts create N+1 query bottlenecks that add huge cumulative latency, especially noticeable under production DB setups where network roundtrips matter.
+**Action:** Always group independent I/O operations using `Promise.all(...)` instead of sequential loops. For native database layers like Drizzle, leverage bulk array insert statements (e.g., `db.insert(table).values([...])`) which are vastly superior.
