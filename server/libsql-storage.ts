@@ -419,8 +419,9 @@ export class LibSQLStorage implements IStorage {
         timestamp: time.toISOString(),
       });
     }
-    for (const r of readings) {
-      await this.createReading(r);
+    // ⚡ Bolt: Use native bulk insert to prevent N+1 sequential roundtrips
+    if (readings.length > 0) {
+      await db.insert(solarReadings).values(readings).run();
     }
     // Set project status to online
     await db.update(projects).set({ monitoringStatus: "online" }).where(eq(projects.id, pid));
