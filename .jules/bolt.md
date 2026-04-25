@@ -1,0 +1,3 @@
+## 2024-05-18 - Bulk Inserts & Concurrency in Express Routes
+**Learning:** Found sequential independent database inserts acting as a silent bottleneck in default project creations. Creating multiple milestones in a `for...of` loop waiting for each insert creates unnecessary N+1 overhead. Drizzle ORM supports `.values(array)` for bulk inserts which perfectly resolves loops over mock data generation, and `Promise.all` executes independent promises concurrently, drastically lowering network wait time.
+**Action:** Always scan loops containing `await` database operations. If subsequent iterations do not depend on the result of the previous one, wrap them in `Promise.all` or rewrite to a bulk Drizzle `.values([])` query for instant improvements.
