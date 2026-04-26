@@ -1,0 +1,3 @@
+## 2026-04-26 - Drizzle N+1 Bulk Insert Optimization
+**Learning:** Sequential DB inserts in a `for...of` loop (like the 48 inserts in `generateMockReadings`) create severe N+1 query bottlenecks due to individual network roundtrips. Drizzle ORM supports batching using `.values(array)` to send everything in one statement, which reduces latency linearly with array size.
+**Action:** When inserting arrays of data into LibSQL via Drizzle, always use `.insert().values(array)` combined with an empty array check `if(array.length > 0)` instead of iterating with individual `await` commands.
