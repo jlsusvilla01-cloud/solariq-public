@@ -239,9 +239,12 @@ export async function registerRoutes(httpServer: Server, app: Express) {
       ["Final Inspection", "Local authority and utility final inspection", "inspection", 9],
       ["Commissioning & Handover", "System testing, monitoring setup, client walkthrough", "commissioned", 10],
     ];
-    for (const [t, d, p, o] of defaults) {
-      await storage.createMilestone({ projectId: proj.id, title: t as string, description: d as string, phase: p as string, sortOrder: o as number, status: "pending" });
-    }
+
+    // ⚡ Bolt: Use Promise.all to parallelize sequential database inserts and mitigate sequential I/O latency
+    await Promise.all(defaults.map(async ([t, d, p, o]) =>
+      storage.createMilestone({ projectId: proj.id, title: t as string, description: d as string, phase: p as string, sortOrder: o as number, status: "pending" })
+    ));
+
     await storage.createUpdate({ projectId: proj.id, message: `Welcome ${proj.clientName}! Your solar installation project has been started. We'll keep you updated every step of the way.`, type: "update", postedBy: "SolarIQ" });
     // Set up notif prefs from project email
     if (proj.clientEmail) {
@@ -272,12 +275,16 @@ export async function registerRoutes(httpServer: Server, app: Express) {
       low: "NOMINAL: Clear skies. Optimal for all installation phases."
     };
     
-    for (const p of projects) {
-        if (p.status !== "commissioned") {
-            const risk = (p.address?.toLowerCase().includes("cebu")) ? "high" : risks[Math.floor(Math.random() * risks.length)];
-            await storage.updateProjectWeather(p.id, risk, alerts[risk]);
-        }
-    }
+    // ⚡ Bolt: Use Promise.all to parallelize sequential database updates and mitigate sequential I/O latency
+    await Promise.all(
+      projects
+        .filter(p => p.status !== "commissioned")
+        .map(async p => {
+          const risk = (p.address?.toLowerCase().includes("cebu")) ? "high" : risks[Math.floor(Math.random() * risks.length)];
+          return storage.updateProjectWeather(p.id, risk, alerts[risk]);
+        })
+    );
+
     res.json({ ok: true });
   });
 
@@ -726,9 +733,12 @@ export async function registerRoutes(httpServer: Server, app: Express) {
       ["Final Inspection", "Local authority and utility final inspection", "inspection", 9],
       ["Commissioning & Handover", "System testing, monitoring setup, client walkthrough", "commissioned", 10],
     ];
-    for (const [t, d, p, o] of defaults) {
-      await storage.createMilestone({ projectId: proj.id, title: t as string, description: d as string, phase: p as string, sortOrder: o as number, status: "pending" });
-    }
+
+    // ⚡ Bolt: Use Promise.all to parallelize sequential database inserts and mitigate sequential I/O latency
+    await Promise.all(defaults.map(async ([t, d, p, o]) =>
+      storage.createMilestone({ projectId: proj.id, title: t as string, description: d as string, phase: p as string, sortOrder: o as number, status: "pending" })
+    ));
+
     await storage.createUpdate({ projectId: proj.id, message: `Welcome ${proj.clientName}! Your solar installation project has been started.`, type: "update", postedBy: "SolarIQ" });
     res.status(201).json(proj);
   });
