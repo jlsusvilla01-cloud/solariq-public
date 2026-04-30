@@ -1,0 +1,3 @@
+## 2024-04-30 - Parallelizing Database Calls via Promise.all
+**Learning:** When dealing with multiple independent sequential I/O operations (like bulk inserting standard milestones or weather updates) in this codebase, avoiding sequential `await` in loops significantly mitigates database roundtrip latency, especially since batch operations like `insert().values(array)` are not uniformly available across the storage layer abstraction.
+**Action:** Always prefer `Promise.all` over sequential await loops for independent I/O tasks when native batch inserts are unavailable or unexposed by the storage interface.
