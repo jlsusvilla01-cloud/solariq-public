@@ -1,0 +1,3 @@
+## 2024-05-02 - Parallelize independent database queries
+**Learning:** Sequential database queries for fetching separate entities related to a project, or for creating multiple identical entities consecutively, lead to significant performance bottlenecks, causing high latency due to multiple roundtrips to the DB.
+**Action:** When querying or modifying independent records concurrently, explicitly parallelize the work using `Promise.all` to reduce total I/O latency to the maximum latency of a single operation. For bulk insert/update in databases supporting it, Drizzle's `.values(array)` method is preferred, but when the schema API expects individual object requests, `Promise.all` acts as a solid application-level optimization.
