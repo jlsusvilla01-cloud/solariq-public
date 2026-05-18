@@ -1,0 +1,3 @@
+## 2024-05-24 - Optimize Sequential Database Inserts Using Promise.all
+**Learning:** Sequential database insertions (like generating default milestones inside a `for...of` loop) are a common pattern but introduce significant latency due to repeated network/I/O roundtrips, especially when the storage interface lacks batch insert capabilities.
+**Action:** Always look for loops performing independent `await` operations. When order doesn't matter or results aren't strictly interdependent, parallelize them using `Promise.all` at the application level to group the operations and mitigate sequential roundtrip latency.
