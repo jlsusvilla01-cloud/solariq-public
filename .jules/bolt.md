@@ -1,0 +1,3 @@
+## 2024-05-19 - Concurrent Database Queries in API Routes
+**Learning:** Sequential independent database queries in heavily accessed API routes (like `/api/track/:token`) create unnecessary N+1 latency bottlenecks. A 7-query sequence waiting on network I/O takes roughly 7x longer than necessary. Similarly, looping to insert default items sequentially compounds latency during project creation.
+**Action:** Always group independent I/O database calls (both reads and bulk inserts/updates) using `Promise.all()` to fetch/execute concurrently, significantly reducing response time and blocking.

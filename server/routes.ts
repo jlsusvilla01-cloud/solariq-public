@@ -83,13 +83,19 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.get("/api/track/:token", async (req, res) => {
     const project = await storage.getProjectByToken(req.params.token);
     if (!project) return res.status(404).json({ error: "Project not found. Check your link." });
-    const ms = await storage.getMilestonesByProject(project.id);
-    const upd = await storage.getUpdatesByProject(project.id);
-    const photos = await storage.getPhotosByProject(project.id);
-    const sigs = await storage.getSignaturesByProject(project.id);
-    const qts = await storage.getQuotationsByProject(project.id);
-    const docs = await storage.getDocumentsByProject(project.id);
-    const pays = await storage.getPaymentsByProject(project.id);
+
+    // ⚡ Bolt Optimization: Group independent database queries in Promise.all
+    // Expected impact: ~50-80% reduction in database wait time by fetching 7 resources concurrently
+    const [ms, upd, photos, sigs, qts, docs, pays] = await Promise.all([
+      storage.getMilestonesByProject(project.id),
+      storage.getUpdatesByProject(project.id),
+      storage.getPhotosByProject(project.id),
+      storage.getSignaturesByProject(project.id),
+      storage.getQuotationsByProject(project.id),
+      storage.getDocumentsByProject(project.id),
+      storage.getPaymentsByProject(project.id)
+    ]);
+
     res.json({
       project,
       milestones: ms.sort((a, b) => a.sortOrder - b.sortOrder),
@@ -239,9 +245,20 @@ export async function registerRoutes(httpServer: Server, app: Express) {
       ["Final Inspection", "Local authority and utility final inspection", "inspection", 9],
       ["Commissioning & Handover", "System testing, monitoring setup, client walkthrough", "commissioned", 10],
     ];
-    for (const [t, d, p, o] of defaults) {
-      await storage.createMilestone({ projectId: proj.id, title: t as string, description: d as string, phase: p as string, sortOrder: o as number, status: "pending" });
-    }
+
+    // ⚡ Bolt Optimization: Execute independent milestone inserts concurrently
+    // Expected impact: Eliminates N sequential network round trips, drastically improving project creation time
+    await Promise.all(defaults.map(([t, d, p, o]) =>
+      storage.createMilestone({
+        projectId: proj.id,
+        title: t as string,
+        description: d as string,
+        phase: p as string,
+        sortOrder: o as number,
+        status: "pending"
+      })
+    ));
+
     await storage.createUpdate({ projectId: proj.id, message: `Welcome ${proj.clientName}! Your solar installation project has been started. We'll keep you updated every step of the way.`, type: "update", postedBy: "SolarIQ" });
     // Set up notif prefs from project email
     if (proj.clientEmail) {
