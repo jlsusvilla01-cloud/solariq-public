@@ -1,0 +1,3 @@
+## 2025-02-14 - Replace sequential DB inserts with concurrent batching/Promise.all
+**Learning:** Sequential database inserts in a loop (e.g., `for (const r of readings) { await db.insert(...) }`) introduce significant N+1 query latency due to multiple round-trips to the database, especially noticeable during bulk data generation or seeding.
+**Action:** Always prefer native bulk insert statements (`db.insert().values(array).run()`) when return values are not needed. For interface methods lacking batch support (like `createMilestone`), use `Promise.all(array.map(...))` to execute independent sequential operations concurrently and minimize latency.
