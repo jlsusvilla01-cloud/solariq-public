@@ -1,0 +1,3 @@
+## 2024-05-22 - Pushing Filtering to the Database
+**Learning:** In the `libsql-storage.ts` adapter, operations like `getProjectByTokenAndPin` and `getUserByEmailAndPassword` were performing full table scans (`.all()`) and filtering the results in-memory using JavaScript's `.find()`. This is a severe anti-pattern for scalability, as it incurs massive memory overhead and JSON parsing I/O latency as tables grow.
+**Action:** Always push query filtering down to the database engine using `where()` clauses combined with `and()`, `eq()` operators from `drizzle-orm`. Only fetch the exact records needed to minimize memory bloat and roundtrip latency.
