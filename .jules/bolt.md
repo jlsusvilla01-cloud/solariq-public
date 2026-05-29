@@ -1,0 +1,3 @@
+## 2024-05-15 - Prevented O(N*M) bottlenecks from repetitive `.filter()` in Render Loops
+**Learning:** Repetitive array `.filter()` calls inside React render loops (e.g., mapping over statuses and filtering the primary list inside each) can cause O(N*M) bottlenecks and create unnecessary array references, putting pressure on garbage collection and causing needless re-renders.
+**Action:** Instead of filtering the primary array multiple times per render cycle, use `useMemo` to reduce the array into a grouped map or dictionary in a single O(N) pass, then access the grouped data using `groupedData[key] || []` within the map loops.
