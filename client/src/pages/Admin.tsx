@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -1209,6 +1209,17 @@ function LogisticsTab() {
 function LeadsTab() {
   const { data: leads = [] } = useQuery<Lead[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   
+  // ⚡ Bolt Performance Optimization: Group leads by status using useMemo
+  // Prevents O(N*M) redundant array .filter() calls inside the render loop for each status.
+  const groupedLeads = useMemo(() => {
+    return leads.reduce((acc, lead) => {
+      const status = lead.status || 'new';
+      if (!acc[status]) acc[status] = [];
+      acc[status].push(lead);
+      return acc;
+    }, {} as Record<string, Lead[]>);
+  }, [leads]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-md">
@@ -1224,18 +1235,20 @@ function LeadsTab() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {['new', 'contacted', 'quoted', 'closed'].map((status) => (
+        {['new', 'contacted', 'quoted', 'closed'].map((status) => {
+          const statusLeads = groupedLeads[status] || [];
+          return (
           <div key={status} className="space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-white/5 px-2">
               <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{status}</span>
               <span className="bg-white/5 text-[9px] px-2 py-0.5 rounded text-white/60">
-                {leads.filter(l => l.status === status).length}
+                {statusLeads.length}
               </span>
             </div>
             
             <div className="space-y-3">
-              {leads.filter(l => l.status === status).length > 0 ? (
-                leads.filter(l => l.status === status).map(lead => (
+              {statusLeads.length > 0 ? (
+                statusLeads.map(lead => (
                   <Card key={lead.id} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 hover:border-[#fbbf24]/20 transition-all cursor-move group">
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="text-sm font-bold text-white group-hover:text-[#fbbf24] transition-colors">{lead.clientName}</h4>
@@ -1259,7 +1272,8 @@ function LeadsTab() {
               )}
             </div>
           </div>
-        ))}
+        );
+        })}
       </div>
     </div>
   );
@@ -1671,10 +1685,22 @@ function HRTab() {
 function FinanceTab() {
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
   const { data: journal = [] } = useQuery<any[]>({ queryKey: ["/api/admin/journal"], queryFn: () => apiFetch("/api/admin/journal") });
-  const revenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const expenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
-  const assets = accounts.filter((a: any) => a.type === "asset").reduce((s: number, a: any) => s + a.balance, 0);
-  const liabilities = accounts.filter((a: any) => a.type === "liability").reduce((s: number, a: any) => s + a.balance, 0);
+
+  // ⚡ Bolt Performance Optimization: Group accounts by type
+  // Reduces 9 individual arrays passes (.filter) down to 1 O(N) grouping pass.
+  const groupedAccounts = useMemo(() => {
+    return accounts.reduce((acc: Record<string, any[]>, a: any) => {
+      const type = a.type || 'unknown';
+      if (!acc[type]) acc[type] = [];
+      acc[type].push(a);
+      return acc;
+    }, {});
+  }, [accounts]);
+
+  const revenue = (groupedAccounts["revenue"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const expenses = (groupedAccounts["expense"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const assets = (groupedAccounts["asset"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const liabilities = (groupedAccounts["liability"] || []).reduce((s: number, a: any) => s + a.balance, 0);
   const netIncome = revenue - expenses;
   const typeColors: Record<string, string> = { asset: "text-blue-400 bg-blue-400/10", liability: "text-red-400 bg-red-400/10", equity: "text-purple-400 bg-purple-400/10", revenue: "text-green-400 bg-green-400/10", expense: "text-orange-400 bg-orange-400/10" };
   const sections = ["asset", "liability", "equity", "revenue", "expense"];
@@ -1692,7 +1718,7 @@ function FinanceTab() {
         <div>
           <h2 className="font-black text-white mb-4">Chart of Accounts</h2>
           {sections.map(type => {
-            const accs = accounts.filter((a: any) => a.type === type);
+            const accs = groupedAccounts[type] || [];
             if (!accs.length) return null;
             return (
               <div key={type} className="mb-4">

@@ -1,0 +1,3 @@
+## 2023-10-24 - Avoid redundant array .filter() calls in React render loops
+**Learning:** Repetitive array `.filter()` calls inside React render loops (e.g., mapping over statuses/sections and filtering the primary list inside each) can easily cause O(N*M) performance bottlenecks and trigger unnecessary CPU overhead during renders.
+**Action:** When filtering a large dataset into multiple categories within a render component, always use `useMemo` with `Array.prototype.reduce()` to group the items into a dictionary (`Record<string, T[]>`) first. This reduces M separate O(N) traversals down to a single O(N) pass, keeping renders lightning fast.
