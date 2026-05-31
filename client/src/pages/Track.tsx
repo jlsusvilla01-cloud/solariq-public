@@ -2,7 +2,7 @@ import { useParams, Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import type { Project, Milestone, Update, MilestonePhoto, Signature, Quotation, Document, Payment } from "@shared/schema";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   CheckCircle2, Clock, AlertTriangle, Circle, Sun, MapPin, Zap, Calendar,
   MessageSquare, Phone, Mail, Languages, Star, PenLine, Image, X, ChevronLeft, ChevronRight,
@@ -589,6 +589,17 @@ export default function TrackPage() {
   const UPDATE_ICONS: Record<string, any> = { milestone: CheckCircle2, alert: AlertTriangle, photo: Sun, update: MessageSquare };
   const UPDATE_COLORS: Record<string, string> = { milestone: "text-green-400", alert: "text-red-400", photo: "text-[#fbbf24]", update: "text-blue-400" };
 
+  // ⚡ Bolt Performance Optimization: Group photos by milestone to prevent O(N*M) lookup
+  const photosByMilestone = useMemo(() => {
+    return photos.reduce((acc: Record<number, MilestonePhoto[]>, photo) => {
+      if (photo.milestoneId) {
+        if (!acc[photo.milestoneId]) acc[photo.milestoneId] = [];
+        acc[photo.milestoneId].push(photo);
+      }
+      return acc;
+    }, {});
+  }, [photos]);
+
   return (
     <div className="min-h-screen bg-[hsl(220_28%_6%)] text-white">
       {/* Header */}
@@ -831,7 +842,7 @@ export default function TrackPage() {
               {milestones.map((m, i) => {
                 const sc = STATUS_CONFIG[m.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
                 const StatusIcon = sc.icon;
-                const mPhotos = photos.filter(p => p.milestoneId === m.id);
+                const mPhotos = photosByMilestone[m.id] || [];
                 return (
                   <div key={m.id} className={`flex gap-3.5 p-4 rounded-xl border transition-colors ${sc.border} ${m.status === "in_progress" ? "bg-[#fbbf24]/4" : m.status === "completed" ? "bg-green-500/3" : "bg-[hsl(220_24%_9%)]"}`}>
                     <div className="flex flex-col items-center gap-1 pt-0.5">
