@@ -1,0 +1,6 @@
+## 2024-05-18 - Optimized LeadsTab to remove O(N*M) bottleneck
+**Learning:** Found multiple calls to `.filter(l => l.status === status)` in a loop rendering `leads`. This creates an O(N*M) complexity rendering bottleneck where `N` is the number of leads and `M` is the number of statuses, combined with repeating `.filter()` calls inside the `.map()`.
+**Action:** Use `useMemo` with `Array.prototype.reduce()` to create a `groupedLeads` dictionary grouped by `status` once, making lookups O(1) inside the loop. This follows the pattern mentioned in memory for `Admin.tsx` where array filter bottlenecks occur.
+## 2024-05-18 - Array.filter inside JSX mapping is an O(N*M) anti-pattern
+**Learning:** Found an O(N*M) rendering bottleneck in React components where lists are mapped (e.g. `leads`, `milestones`), and inside the map, another list is filtered based on the current item (e.g. `leads.filter(l => l.status === status)`, `photos.filter(p => p.milestoneId === m.id)`).
+**Action:** Use `useMemo` and `Array.prototype.reduce()` to pre-group the items into a dictionary outside the rendering map loop. This changes the lookup time from O(N) to O(1) inside the map, significantly improving React rendering performance.
