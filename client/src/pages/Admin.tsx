@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback , useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -1209,6 +1209,15 @@ function LogisticsTab() {
 function LeadsTab() {
   const { data: leads = [] } = useQuery<Lead[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   
+  // ⚡ Bolt Performance Optimization: Group leads by status to avoid O(N*M) filtering inside render loops
+  const leadsByStatus = useMemo(() => {
+    return leads.reduce((acc: Record<string, Lead[]>, lead) => {
+      if (!acc[lead.status]) acc[lead.status] = [];
+      acc[lead.status].push(lead);
+      return acc;
+    }, {});
+  }, [leads]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-md">
@@ -1229,13 +1238,13 @@ function LeadsTab() {
             <div className="flex items-center justify-between pb-2 border-b border-white/5 px-2">
               <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{status}</span>
               <span className="bg-white/5 text-[9px] px-2 py-0.5 rounded text-white/60">
-                {leads.filter(l => l.status === status).length}
+                {(leadsByStatus[status] || []).length}
               </span>
             </div>
             
             <div className="space-y-3">
-              {leads.filter(l => l.status === status).length > 0 ? (
-                leads.filter(l => l.status === status).map(lead => (
+              {(leadsByStatus[status] || []).length > 0 ? (
+                (leadsByStatus[status] || []).map(lead => (
                   <Card key={lead.id} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 hover:border-[#fbbf24]/20 transition-all cursor-move group">
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="text-sm font-bold text-white group-hover:text-[#fbbf24] transition-colors">{lead.clientName}</h4>
@@ -1671,10 +1680,20 @@ function HRTab() {
 function FinanceTab() {
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
   const { data: journal = [] } = useQuery<any[]>({ queryKey: ["/api/admin/journal"], queryFn: () => apiFetch("/api/admin/journal") });
-  const revenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const expenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
-  const assets = accounts.filter((a: any) => a.type === "asset").reduce((s: number, a: any) => s + a.balance, 0);
-  const liabilities = accounts.filter((a: any) => a.type === "liability").reduce((s: number, a: any) => s + a.balance, 0);
+
+  // ⚡ Bolt Performance Optimization: Group accounts by type to avoid O(N*M) filtering inside render loops
+  const accountsByType = useMemo(() => {
+    return accounts.reduce((acc: Record<string, any[]>, account: any) => {
+      if (!acc[account.type]) acc[account.type] = [];
+      acc[account.type].push(account);
+      return acc;
+    }, {});
+  }, [accounts]);
+
+  const revenue = (accountsByType["revenue"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const expenses = (accountsByType["expense"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const assets = (accountsByType["asset"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const liabilities = (accountsByType["liability"] || []).reduce((s: number, a: any) => s + a.balance, 0);
   const netIncome = revenue - expenses;
   const typeColors: Record<string, string> = { asset: "text-blue-400 bg-blue-400/10", liability: "text-red-400 bg-red-400/10", equity: "text-purple-400 bg-purple-400/10", revenue: "text-green-400 bg-green-400/10", expense: "text-orange-400 bg-orange-400/10" };
   const sections = ["asset", "liability", "equity", "revenue", "expense"];
@@ -1692,7 +1711,7 @@ function FinanceTab() {
         <div>
           <h2 className="font-black text-white mb-4">Chart of Accounts</h2>
           {sections.map(type => {
-            const accs = accounts.filter((a: any) => a.type === type);
+            const accs = accountsByType[type] || [];
             if (!accs.length) return null;
             return (
               <div key={type} className="mb-4">
@@ -1925,8 +1944,18 @@ function ServiceTab() {
 function DashboardTab({ projects }: { projects: any[] }) {
   const { data: leads = [] } = useQuery<any[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
-  const totalRevenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const totalExpenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
+
+  // ⚡ Bolt Performance Optimization: Group accounts by type to avoid O(N*M) filtering inside render loops
+  const accountsByType = useMemo(() => {
+    return accounts.reduce((acc: Record<string, any[]>, account: any) => {
+      if (!acc[account.type]) acc[account.type] = [];
+      acc[account.type].push(account);
+      return acc;
+    }, {});
+  }, [accounts]);
+
+  const totalRevenue = (accountsByType["revenue"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const totalExpenses = (accountsByType["expense"] || []).reduce((s: number, a: any) => s + a.balance, 0);
   const avgDeal = projects.length ? Math.round(projects.reduce((s, p) => s + (p.contractValue || 0), 0) / projects.length) : 0;
   const commissioned = projects.filter(p => p.status === "commissioned").length;
   const closeRate = leads.length ? Math.round((commissioned / leads.length) * 100) : 0;
