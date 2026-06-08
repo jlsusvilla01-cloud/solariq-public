@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -1209,6 +1209,16 @@ function LogisticsTab() {
 function LeadsTab() {
   const { data: leads = [] } = useQuery<Lead[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   
+  // BOLT OPTIMIZATION: Memoize leads grouped by status to avoid repetitive N iterations inside map loops
+  const leadsByStatus = useMemo(() => {
+    return leads.reduce((acc, lead) => {
+      const status = lead.status || 'new';
+      if (!acc[status]) acc[status] = [];
+      acc[status].push(lead);
+      return acc;
+    }, {} as Record<string, Lead[]>);
+  }, [leads]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-md">
@@ -1224,18 +1234,20 @@ function LeadsTab() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {['new', 'contacted', 'quoted', 'closed'].map((status) => (
+        {['new', 'contacted', 'quoted', 'closed'].map((status) => {
+          const statusLeads = leadsByStatus[status] || [];
+          return (
           <div key={status} className="space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-white/5 px-2">
               <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{status}</span>
               <span className="bg-white/5 text-[9px] px-2 py-0.5 rounded text-white/60">
-                {leads.filter(l => l.status === status).length}
+                {statusLeads.length}
               </span>
             </div>
             
             <div className="space-y-3">
-              {leads.filter(l => l.status === status).length > 0 ? (
-                leads.filter(l => l.status === status).map(lead => (
+              {statusLeads.length > 0 ? (
+                statusLeads.map(lead => (
                   <Card key={lead.id} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 hover:border-[#fbbf24]/20 transition-all cursor-move group">
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="text-sm font-bold text-white group-hover:text-[#fbbf24] transition-colors">{lead.clientName}</h4>
@@ -1259,7 +1271,7 @@ function LeadsTab() {
               )}
             </div>
           </div>
-        ))}
+        );})}
       </div>
     </div>
   );
@@ -1671,10 +1683,21 @@ function HRTab() {
 function FinanceTab() {
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
   const { data: journal = [] } = useQuery<any[]>({ queryKey: ["/api/admin/journal"], queryFn: () => apiFetch("/api/admin/journal") });
-  const revenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const expenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
-  const assets = accounts.filter((a: any) => a.type === "asset").reduce((s: number, a: any) => s + a.balance, 0);
-  const liabilities = accounts.filter((a: any) => a.type === "liability").reduce((s: number, a: any) => s + a.balance, 0);
+
+  // BOLT OPTIMIZATION: Replaced O(N*M) inline .filter() calls with a grouped dictionary for O(1) lookups during rendering.
+  const accountsByType = useMemo(() => {
+    return accounts.reduce((acc, account) => {
+      const type = account.type || 'unknown';
+      if (!acc[type]) acc[type] = [];
+      acc[type].push(account);
+      return acc;
+    }, {} as Record<string, any[]>);
+  }, [accounts]);
+
+  const revenue = (accountsByType["revenue"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const expenses = (accountsByType["expense"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const assets = (accountsByType["asset"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const liabilities = (accountsByType["liability"] || []).reduce((s: number, a: any) => s + a.balance, 0);
   const netIncome = revenue - expenses;
   const typeColors: Record<string, string> = { asset: "text-blue-400 bg-blue-400/10", liability: "text-red-400 bg-red-400/10", equity: "text-purple-400 bg-purple-400/10", revenue: "text-green-400 bg-green-400/10", expense: "text-orange-400 bg-orange-400/10" };
   const sections = ["asset", "liability", "equity", "revenue", "expense"];
@@ -1692,7 +1715,7 @@ function FinanceTab() {
         <div>
           <h2 className="font-black text-white mb-4">Chart of Accounts</h2>
           {sections.map(type => {
-            const accs = accounts.filter((a: any) => a.type === type);
+            const accs = accountsByType[type] || [];
             if (!accs.length) return null;
             return (
               <div key={type} className="mb-4">
@@ -1925,15 +1948,44 @@ function ServiceTab() {
 function DashboardTab({ projects }: { projects: any[] }) {
   const { data: leads = [] } = useQuery<any[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
-  const totalRevenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const totalExpenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
+  const accountsByType = useMemo(() => {
+    return accounts.reduce((acc, account) => {
+      const type = account.type || 'unknown';
+      if (!acc[type]) acc[type] = [];
+      acc[type].push(account);
+      return acc;
+    }, {} as Record<string, any[]>);
+  }, [accounts]);
+
+  // BOLT OPTIMIZATION: Memoize leads grouped by status to avoid repetitive N iterations inside map loops
+  const leadsByStatus = useMemo(() => {
+    return leads.reduce((acc, lead) => {
+      const status = lead.status || 'new';
+      if (!acc[status]) acc[status] = [];
+      acc[status].push(lead);
+      return acc;
+    }, {} as Record<string, any[]>);
+  }, [leads]);
+
+  // BOLT OPTIMIZATION: Memoize projects grouped by status to avoid repetitive N iterations inside map loops
+  const projectsByStatus = useMemo(() => {
+    return projects.reduce((acc, project) => {
+      const status = project.status || 'unknown';
+      if (!acc[status]) acc[status] = [];
+      acc[status].push(project);
+      return acc;
+    }, {} as Record<string, any[]>);
+  }, [projects]);
+
+  const totalRevenue = (accountsByType["revenue"] || []).reduce((s: number, a: any) => s + a.balance, 0);
+  const totalExpenses = (accountsByType["expense"] || []).reduce((s: number, a: any) => s + a.balance, 0);
   const avgDeal = projects.length ? Math.round(projects.reduce((s, p) => s + (p.contractValue || 0), 0) / projects.length) : 0;
-  const commissioned = projects.filter(p => p.status === "commissioned").length;
+  const commissioned = (projectsByStatus["commissioned"] || []).length;
   const closeRate = leads.length ? Math.round((commissioned / leads.length) * 100) : 0;
   const stages = [
-    { label: "New Leads", count: leads.filter((l: any) => l.status === "new").length, color: "bg-blue-500" },
-    { label: "Quoted", count: leads.filter((l: any) => l.status === "quoted").length, color: "bg-yellow-500" },
-    { label: "Won", count: leads.filter((l: any) => l.status === "closed_won").length, color: "bg-green-500" },
+    { label: "New Leads", count: (leadsByStatus["new"] || []).length, color: "bg-blue-500" },
+    { label: "Quoted", count: (leadsByStatus["quoted"] || []).length, color: "bg-yellow-500" },
+    { label: "Won", count: (leadsByStatus["closed_won"] || []).length, color: "bg-green-500" },
     { label: "Commissioned", count: commissioned, color: "bg-[#fbbf24]" },
   ];
   const maxStage = Math.max(...stages.map(s => s.count), 1);
@@ -1942,7 +1994,7 @@ function DashboardTab({ projects }: { projects: any[] }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Total Revenue", val: `₱${totalRevenue.toLocaleString()}`, sub: "All time", color: "text-green-400" },
-          { label: "Active Projects", val: projects.filter(p => p.status !== "commissioned").length, sub: `of ${projects.length} total`, color: "text-[#fbbf24]" },
+          { label: "Active Projects", val: projects.length - commissioned, sub: `of ${projects.length} total`, color: "text-[#fbbf24]" },
           { label: "Avg Deal Size", val: `₱${avgDeal.toLocaleString()}`, sub: "Per project", color: "text-blue-400" },
           { label: "Lead Close Rate", val: `${closeRate}%`, sub: `${leads.length} leads`, color: "text-purple-400" },
         ].map(({ label, val, sub, color }) => (
@@ -1971,7 +2023,7 @@ function DashboardTab({ projects }: { projects: any[] }) {
           <h3 className="font-black text-white mb-4">Project Stage Breakdown</h3>
           <div className="space-y-2">
             {["survey", "design", "permitting", "procurement", "installation", "inspection", "commissioned"].map(stage => {
-              const count = projects.filter(p => p.status === stage).length;
+              const count = (projectsByStatus[stage] || []).length;
               return (
                 <div key={stage} className="flex items-center gap-3">
                   <div className="w-20 text-[10px] text-white/40 capitalize shrink-0">{stage}</div>
@@ -2067,8 +2119,17 @@ function TenantsTab() {
 
 // ── Elite Feature 1: Analytics & BI ──
 function AnalyticsTab({ projects }: { projects: any[] }) {
+  const projectsByStatus = useMemo(() => {
+    return projects.reduce((acc, project) => {
+      const status = project.status || 'unknown';
+      if (!acc[status]) acc[status] = [];
+      acc[status].push(project);
+      return acc;
+    }, {} as Record<string, any[]>);
+  }, [projects]);
+
   const totalRevenue = projects.reduce((s: number, p: any) => s + (p.contractValue || 0), 0);
-  const completed = projects.filter((p: any) => p.status === "commissioned").length;
+  const completed = (projectsByStatus["commissioned"] || []).length;
   const avgProgress = projects.length ? Math.round(projects.reduce((s: number, p: any) => s + (p.overallProgress || 0), 0) / projects.length) : 0;
   const totalSavings = projects.reduce((s: number, p: any) => s + (p.totalLifetimeSavings || 0), 0);
   const kpis = [
