@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -1671,10 +1671,18 @@ function HRTab() {
 function FinanceTab() {
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
   const { data: journal = [] } = useQuery<any[]>({ queryKey: ["/api/admin/journal"], queryFn: () => apiFetch("/api/admin/journal") });
-  const revenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const expenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
-  const assets = accounts.filter((a: any) => a.type === "asset").reduce((s: number, a: any) => s + a.balance, 0);
-  const liabilities = accounts.filter((a: any) => a.type === "liability").reduce((s: number, a: any) => s + a.balance, 0);
+
+  // ⚡ Bolt Performance Optimization: Single-pass reduce instead of multiple filter+reduce chains
+  // Expected impact: Reduces accounts array iterations from 8x to 1x, improving render performance for large datasets.
+  const { revenue, expense: expenses, asset: assets, liability: liabilities } = useMemo(() => {
+    return accounts.reduce((acc: any, curr: any) => {
+      if (acc[curr.type] !== undefined) {
+        acc[curr.type] += curr.balance || 0;
+      }
+      return acc;
+    }, { revenue: 0, expense: 0, asset: 0, liability: 0 });
+  }, [accounts]);
+
   const netIncome = revenue - expenses;
   const typeColors: Record<string, string> = { asset: "text-blue-400 bg-blue-400/10", liability: "text-red-400 bg-red-400/10", equity: "text-purple-400 bg-purple-400/10", revenue: "text-green-400 bg-green-400/10", expense: "text-orange-400 bg-orange-400/10" };
   const sections = ["asset", "liability", "equity", "revenue", "expense"];
@@ -1925,8 +1933,18 @@ function ServiceTab() {
 function DashboardTab({ projects }: { projects: any[] }) {
   const { data: leads = [] } = useQuery<any[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
-  const totalRevenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const totalExpenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
+
+  // ⚡ Bolt Performance Optimization: Single-pass reduce instead of multiple filter+reduce chains
+  // Expected impact: Reduces accounts array iterations from 4x to 1x, improving render performance for large datasets.
+  const { revenue: totalRevenue, expense: totalExpenses } = useMemo(() => {
+    return accounts.reduce((acc: any, curr: any) => {
+      if (acc[curr.type] !== undefined) {
+        acc[curr.type] += curr.balance || 0;
+      }
+      return acc;
+    }, { revenue: 0, expense: 0 });
+  }, [accounts]);
+
   const avgDeal = projects.length ? Math.round(projects.reduce((s, p) => s + (p.contractValue || 0), 0) / projects.length) : 0;
   const commissioned = projects.filter(p => p.status === "commissioned").length;
   const closeRate = leads.length ? Math.round((commissioned / leads.length) * 100) : 0;
