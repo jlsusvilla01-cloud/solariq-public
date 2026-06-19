@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -1671,10 +1671,16 @@ function HRTab() {
 function FinanceTab() {
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
   const { data: journal = [] } = useQuery<any[]>({ queryKey: ["/api/admin/journal"], queryFn: () => apiFetch("/api/admin/journal") });
-  const revenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const expenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
-  const assets = accounts.filter((a: any) => a.type === "asset").reduce((s: number, a: any) => s + a.balance, 0);
-  const liabilities = accounts.filter((a: any) => a.type === "liability").reduce((s: number, a: any) => s + a.balance, 0);
+  // Optimize: single pass through accounts to calculate all balances
+  const { revenue, expenses, assets, liabilities } = useMemo(() => {
+    return accounts.reduce((acc: any, a: any) => {
+      if (a.type === "revenue") acc.revenue += a.balance || 0;
+      else if (a.type === "expense") acc.expenses += a.balance || 0;
+      else if (a.type === "asset") acc.assets += a.balance || 0;
+      else if (a.type === "liability") acc.liabilities += a.balance || 0;
+      return acc;
+    }, { revenue: 0, expenses: 0, assets: 0, liabilities: 0 });
+  }, [accounts]);
   const netIncome = revenue - expenses;
   const typeColors: Record<string, string> = { asset: "text-blue-400 bg-blue-400/10", liability: "text-red-400 bg-red-400/10", equity: "text-purple-400 bg-purple-400/10", revenue: "text-green-400 bg-green-400/10", expense: "text-orange-400 bg-orange-400/10" };
   const sections = ["asset", "liability", "equity", "revenue", "expense"];
@@ -1925,8 +1931,14 @@ function ServiceTab() {
 function DashboardTab({ projects }: { projects: any[] }) {
   const { data: leads = [] } = useQuery<any[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
-  const totalRevenue = accounts.filter((a: any) => a.type === "revenue").reduce((s: number, a: any) => s + a.balance, 0);
-  const totalExpenses = accounts.filter((a: any) => a.type === "expense").reduce((s: number, a: any) => s + a.balance, 0);
+  // Optimize: single pass through accounts to calculate revenue and expenses
+  const { totalRevenue, totalExpenses } = useMemo(() => {
+    return accounts.reduce((acc: any, a: any) => {
+      if (a.type === "revenue") acc.totalRevenue += a.balance || 0;
+      else if (a.type === "expense") acc.totalExpenses += a.balance || 0;
+      return acc;
+    }, { totalRevenue: 0, totalExpenses: 0 });
+  }, [accounts]);
   const avgDeal = projects.length ? Math.round(projects.reduce((s, p) => s + (p.contractValue || 0), 0) / projects.length) : 0;
   const commissioned = projects.filter(p => p.status === "commissioned").length;
   const closeRate = leads.length ? Math.round((commissioned / leads.length) * 100) : 0;
