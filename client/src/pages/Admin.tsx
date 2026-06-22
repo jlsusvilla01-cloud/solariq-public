@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -1209,6 +1209,16 @@ function LogisticsTab() {
 function LeadsTab() {
   const { data: leads = [] } = useQuery<Lead[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   
+  // ⚡ Bolt: Group leads to O(1) lookups instead of O(n*m) repetitive filters
+  const leadsByStatus = useMemo(() => {
+    return leads.reduce((acc: Record<string, Lead[]>, lead: Lead) => {
+      const status = lead.status || 'new';
+      if (!acc[status]) acc[status] = [];
+      acc[status].push(lead);
+      return acc;
+    }, {});
+  }, [leads]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-md">
@@ -1224,18 +1234,20 @@ function LeadsTab() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {['new', 'contacted', 'quoted', 'closed'].map((status) => (
+        {['new', 'contacted', 'quoted', 'closed'].map((status) => {
+          const statusLeads = leadsByStatus[status] || [];
+          return (
           <div key={status} className="space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-white/5 px-2">
               <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{status}</span>
               <span className="bg-white/5 text-[9px] px-2 py-0.5 rounded text-white/60">
-                {leads.filter(l => l.status === status).length}
+                {statusLeads.length}
               </span>
             </div>
             
             <div className="space-y-3">
-              {leads.filter(l => l.status === status).length > 0 ? (
-                leads.filter(l => l.status === status).map(lead => (
+              {statusLeads.length > 0 ? (
+                statusLeads.map(lead => (
                   <Card key={lead.id} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 hover:border-[#fbbf24]/20 transition-all cursor-move group">
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="text-sm font-bold text-white group-hover:text-[#fbbf24] transition-colors">{lead.clientName}</h4>
@@ -1259,7 +1271,7 @@ function LeadsTab() {
               )}
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   );
