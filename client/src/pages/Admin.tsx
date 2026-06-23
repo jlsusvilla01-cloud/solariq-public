@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -1209,6 +1209,16 @@ function LogisticsTab() {
 function LeadsTab() {
   const { data: leads = [] } = useQuery<Lead[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   
+  // ⚡ Bolt Optimization: Group leads by status once to avoid O(N*M) repetitive array filtering during render
+  const leadsByStatus = useMemo(() => {
+    return leads.reduce<Record<string, Lead[]>>((acc, lead) => {
+      const status = lead.status || "new";
+      if (!acc[status]) acc[status] = [];
+      acc[status].push(lead);
+      return acc;
+    }, {});
+  }, [leads]);
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-md">
@@ -1224,42 +1234,45 @@ function LeadsTab() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {['new', 'contacted', 'quoted', 'closed'].map((status) => (
-          <div key={status} className="space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-white/5 px-2">
-              <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{status}</span>
-              <span className="bg-white/5 text-[9px] px-2 py-0.5 rounded text-white/60">
-                {leads.filter(l => l.status === status).length}
-              </span>
-            </div>
-            
-            <div className="space-y-3">
-              {leads.filter(l => l.status === status).length > 0 ? (
-                leads.filter(l => l.status === status).map(lead => (
-                  <Card key={lead.id} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 hover:border-[#fbbf24]/20 transition-all cursor-move group">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="text-sm font-bold text-white group-hover:text-[#fbbf24] transition-colors">{lead.clientName}</h4>
-                      <Badge className="bg-blue-500/10 text-blue-400 border-none text-[8px] px-1.5 h-4 uppercase">{lead.source}</Badge>
-                    </div>
-                    <p className="text-[10px] text-white/40 mb-3 truncate">{lead.notes || "No additional notes provided."}</p>
-                    <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/5">
-                      <div className="flex -space-x-1">
-                        {[1,2,3].map(i => <div key={i} className="w-4 h-4 rounded-full bg-white/10 border border-black" />)}
+        {['new', 'contacted', 'quoted', 'closed'].map((status) => {
+          const statusLeads = leadsByStatus[status] || [];
+          return (
+            <div key={status} className="space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b border-white/5 px-2">
+                <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{status}</span>
+                <span className="bg-white/5 text-[9px] px-2 py-0.5 rounded text-white/60">
+                  {statusLeads.length}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {statusLeads.length > 0 ? (
+                  statusLeads.map(lead => (
+                    <Card key={lead.id} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 hover:border-[#fbbf24]/20 transition-all cursor-move group">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="text-sm font-bold text-white group-hover:text-[#fbbf24] transition-colors">{lead.clientName}</h4>
+                        <Badge className="bg-blue-500/10 text-blue-400 border-none text-[8px] px-1.5 h-4 uppercase">{lead.source}</Badge>
                       </div>
-                      <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#fbbf24]" style={{ width: '40%' }} />
+                      <p className="text-[10px] text-white/40 mb-3 truncate">{lead.notes || "No additional notes provided."}</p>
+                      <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/5">
+                        <div className="flex -space-x-1">
+                          {[1,2,3].map(i => <div key={i} className="w-4 h-4 rounded-full bg-white/10 border border-black" />)}
+                        </div>
+                        <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
+                          <div className="h-full bg-[#fbbf24]" style={{ width: '40%' }} />
+                        </div>
                       </div>
-                    </div>
-                  </Card>
-                ))
-              ) : (
-                <div className="py-8 text-center border border-dashed border-white/5 rounded-xl">
-                  <p className="text-[10px] text-white/10 uppercase font-black tracking-widest">No leads in this stage</p>
-                </div>
-              )}
+                    </Card>
+                  ))
+                ) : (
+                  <div className="py-8 text-center border border-dashed border-white/5 rounded-xl">
+                    <p className="text-[10px] text-white/10 uppercase font-black tracking-widest">No leads in this stage</p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
