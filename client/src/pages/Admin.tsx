@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -1208,6 +1208,16 @@ function LogisticsTab() {
 // ── NEW: Leads CRM Tab ──
 function LeadsTab() {
   const { data: leads = [] } = useQuery<Lead[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
+  // ⚡ Bolt Performance Optimization:
+  // Pre-calculate leads grouped by status to turn O(N*M) .filter() calls in render into O(1) dictionary lookups.
+  const leadsByStatus = useMemo(() => {
+    return leads.reduce<Record<string, Lead[]>>((acc, lead) => {
+      const status = lead.status || "new";
+      if (!acc[status]) acc[status] = [];
+      acc[status].push(lead);
+      return acc;
+    }, {});
+  }, [leads]);
   
   return (
     <div className="space-y-6">
@@ -1229,13 +1239,13 @@ function LeadsTab() {
             <div className="flex items-center justify-between pb-2 border-b border-white/5 px-2">
               <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{status}</span>
               <span className="bg-white/5 text-[9px] px-2 py-0.5 rounded text-white/60">
-                {leads.filter(l => l.status === status).length}
+                {leadsByStatus[status]?.length || 0}
               </span>
             </div>
             
             <div className="space-y-3">
-              {leads.filter(l => l.status === status).length > 0 ? (
-                leads.filter(l => l.status === status).map(lead => (
+              {leadsByStatus[status] && leadsByStatus[status].length > 0 ? (
+                leadsByStatus[status].map(lead => (
                   <Card key={lead.id} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 hover:border-[#fbbf24]/20 transition-all cursor-move group">
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="text-sm font-bold text-white group-hover:text-[#fbbf24] transition-colors">{lead.clientName}</h4>
