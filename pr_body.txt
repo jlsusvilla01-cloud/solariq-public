@@ -1,0 +1,7 @@
+💡 What: Replaced repeated O(N) `.filter()` array calls inside the render loop with a single `useMemo` + `reduce` block to group leads by status into a dictionary.
+
+🎯 Why: The `LeadsTab` component was iterating over the entire `leads` array multiple times on every render (once for every mapped lead to check status, or similar filter arrays), causing an O(N*M) bottleneck.
+
+📊 Impact: Reduces rendering time and CPU overhead for the Admin panel. Complexity drops from O(N*M) down to an initial O(N) grouping pass and subsequent O(1) dictionary lookups.
+
+🔬 Measurement: Profile the Admin panel with a large dataset (1000+ leads) in the React DevTools Profiler; observe measurably faster commit times and reduced main thread blocking during state updates.
