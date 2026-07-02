@@ -1,0 +1,6 @@
+## 2024-05-24 - Array.prototype.filter in React Render loops
+**Learning:** React render functions that contain multiple `Array.prototype.filter()` calls over the same array inside a `.map()` or for a set of categories (e.g. `FinanceTab` rendering sections for accounts, `Admin.tsx` overall stats, or `LeadsTab` filtering by status) cause O(N*M) time complexity and create unnecessary objects on every render, slowing down components when data sizes grow.
+**Action:** Use `useMemo` with `Array.prototype.reduce()` at the top level of the component to group items into a dictionary for O(1) lookups and fewer total iterations.
+## 2024-05-24 - Array.prototype.filter in React Render loops
+**Learning:** React render functions that contain multiple `Array.prototype.filter()` calls over the same array inside a `.map()` or for a set of categories (e.g. `FinanceTab` rendering sections for accounts, `Admin.tsx` overall stats, or `LeadsTab` filtering by status) cause O(N*M) time complexity and create unnecessary objects on every render, slowing down components when data sizes grow.
+**Action:** Use `useMemo` with `Array.prototype.reduce()` at the top level of the component to group items into a dictionary for O(1) lookups and fewer total iterations.
