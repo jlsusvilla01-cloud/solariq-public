@@ -1,0 +1,27 @@
+
+> rest-express@1.0.0 dev
+> cross-env NODE_ENV=development tsx server/index.ts
+
+1:49:20 PM [startup] Initializing database...
+Initializing LibSQL Storage
+Failed to load LibSQL storage, falling back to Memory: LibsqlError: URL_SCHEME_NOT_SUPPORTED: The client that uses Web standard APIs supports only "libsql:", "wss:", "ws:", "https:" and "http:" URLs, got "file:". For more information, please read https://github.com/libsql/libsql-client-ts#supported-urls
+    at _createClient (file:///app/node_modules/@libsql/client/lib-esm/web.js:19:15)
+    at createClient (file:///app/node_modules/@libsql/client/lib-esm/web.js:8:12)
+    at new LibSQLStorage (/app/server/libsql-storage.ts:13:14)
+    at initDb (/app/server/storage.ts:34:17)
+    at async <anonymous> (/app/server/index.ts:70:5) {
+  code: 'URL_SCHEME_NOT_SUPPORTED',
+  extendedCode: undefined,
+  rawCode: undefined,
+  [cause]: undefined
+}
+Seeding MemStorage for Vercel Demo...
+1:49:22 PM [startup] Database initialized successfully
+(node:41474) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+1:49:22 PM [express] serving on port 5000
+1:49:47 PM [express] POST /api/admin/login 200 in 2ms :: {"ok":true,"name":"SolarIQ Admin","token":"YWRtaW46c29sYXJpcTIwMjY="}
+1:49:48 PM [express] GET /api/admin/leads 401 in 1ms :: {"error":"Unauthorized"}
+1:49:48 PM [express] GET /api/admin/accounts 401 in 1ms :: {"error":"Unauthorized"}
+1:49:48 PM [express] GET /api/admin/projects 401 in 1ms :: {"error":"Unauthorized"}
+1:49:49 PM [express] GET /api/admin/leads 401 in 1ms :: {"error":"Unauthorized"}
