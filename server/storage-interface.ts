@@ -14,6 +14,7 @@ import type {
   Inventory, InsertInventory, 
   Design, InsertDesign, 
   Lead, InsertLead, 
+  Competitor, InsertCompetitor,
   Crew, InsertCrew, 
   Proposal, InsertProposal, 
   ServiceJob, InsertServiceJob, 
@@ -217,4 +218,10 @@ export interface IStorage {
   findUserByGoogleId(googleId: string): Promise<User | undefined>;
   getProjectsByUserId(userId: number): Promise<Project[]>;
   getAllUsers(): Promise<User[]>;
+
+  // Market Intelligence (Competitors)
+  getAllCompetitors(): Promise<Competitor[]>;
+  createCompetitor(data: InsertCompetitor): Promise<Competitor>;
+  updateCompetitor(id: number, data: Partial<InsertCompetitor>): Promise<Competitor | null>;
+  deleteCompetitor(id: number): Promise<void>;
 }

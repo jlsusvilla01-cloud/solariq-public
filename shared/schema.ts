@@ -561,3 +561,43 @@ export type SiteSurvey = typeof siteSurveys.$inferSelect;
 export const insertReadingSchema = createInsertSchema(solarReadings).omit({ id: true });
 export type InsertReading = z.infer<typeof insertReadingSchema>;
 export type SolarReading = typeof solarReadings.$inferSelect;
+
+// ── NEW: Market Intelligence (Competitor Tracking) ──
+export const competitors = sqliteTable("competitors", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  baseLocation: text("base_location"),
+  region: text("region").notNull().default(""), // market the competitor is tracked in, e.g. "Iloilo"
+  segment: text("segment").notNull().default("residential"), // residential|commercial|mixed|government
+  systemTypes: text("system_types"), // free text: grid-tie, hybrid, off-grid
+  gridTiePricePerKw: real("grid_tie_price_per_kw"), // PHP per kW, null = not published
+  hybridPricePerKw: real("hybrid_price_per_kw"), // PHP per kW, null = not published
+  offersFinancing: integer("offers_financing").notNull().default(0),
+  publishesPrices: integer("publishes_prices").notNull().default(0),
+  netMeteringService: integer("net_metering_service").notNull().default(0),
+  warrantyYears: integer("warranty_years"),
+  strengths: text("strengths"),
+  weaknesses: text("weaknesses"),
+  website: text("website"),
+  sourceUrl: text("source_url"),
+  threatLevel: text("threat_level").notNull().default("medium"), // low|medium|high
+  lastChecked: text("last_checked"),
+  createdAt: text("created_at").notNull().default(""),
+});
+
+const httpUrl = z.string().trim().max(500).refine(v => v === "" || /^https?:\/\//i.test(v), "Must start with http:// or https://");
+export const insertCompetitorSchema = createInsertSchema(competitors, {
+  name: z.string().trim().min(1).max(120),
+  segment: z.enum(["residential", "commercial", "mixed", "government"]),
+  threatLevel: z.enum(["low", "medium", "high"]),
+  gridTiePricePerKw: z.number().positive().max(1_000_000).nullable().optional(),
+  hybridPricePerKw: z.number().positive().max(1_000_000).nullable().optional(),
+  warrantyYears: z.number().int().min(0).max(50).nullable().optional(),
+  offersFinancing: z.number().int().min(0).max(1),
+  publishesPrices: z.number().int().min(0).max(1),
+  netMeteringService: z.number().int().min(0).max(1),
+  website: httpUrl.nullable().optional(),
+  sourceUrl: httpUrl.nullable().optional(),
+}).omit({ id: true, createdAt: true });
+export type InsertCompetitor = z.infer<typeof insertCompetitorSchema>;
+export type Competitor = typeof competitors.$inferSelect;

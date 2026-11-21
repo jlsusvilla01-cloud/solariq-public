@@ -9,7 +9,7 @@ import {
   Camera, QrCode, Bell, PenLine, Download, Image as ImageIcon, RefreshCw,
   FileText, Receipt, Package, TrendingUp, Cpu, Info, Zap, Minus,
   Users, ShoppingCart, CloudSun, Target, Building2, MapPin, Search, Filter, Truck,
-  AlertTriangle, Wind, Sun, AlertCircle, CreditCard
+  AlertTriangle, Wind, Sun, AlertCircle, CreditCard, Crosshair
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,11 +17,17 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import MarketIntelTab from "@/components/MarketIntelTab";
 
 // ── In-memory auth ──
 let _adminToken = "";
 let _adminName = "";
-const getToken = () => _adminToken;
+// Falls back to the token saved at login; the in-memory copy alone is empty after sign-in or a reload,
+// which made every authenticated admin request return 401.
+const getToken = () => {
+  if (_adminToken) return _adminToken;
+  try { return localStorage.getItem("solariq_admin_token") || ""; } catch { return ""; }
+};
 const authHeaders = () => ({ Authorization: `Basic ${getToken()}`, "Content-Type": "application/json" });
 const apiFetch = async (url: string, opts: any = {}) => {
   const r = await fetch(url, { ...opts, headers: { ...authHeaders(), ...(opts.headers || {}) } });
@@ -2483,6 +2489,7 @@ export default function AdminPage() {
         { id: "leads", label: "Leads CRM", icon: Target },
         { id: "referrals", label: "Referrals", icon: Users },
         { id: "proposals", label: "Proposals", icon: FileText },
+        { id: "market-intel", label: "Market Intel", icon: Crosshair },
       ]
     },
     {
@@ -2528,7 +2535,7 @@ export default function AdminPage() {
 
   const tabLabels: Record<string, string> = {
     dashboard: "Executive Dashboard", analytics: "Analytics & Business Intelligence",
-    leads: "Leads CRM", referrals: "Referral Engine", proposals: "Proposals",
+    leads: "Leads CRM", referrals: "Referral Engine", proposals: "Proposals", "market-intel": "Market Intelligence",
     designer: "AI Solar Designer", projects: "Active Project Builds", service: "After-Sales Service",
     inventory: "Inventory Management", bom: "Bill of Materials", procurement: "Procurement",
     scheduling: "Crew Scheduling & Gantt",
@@ -2606,6 +2613,7 @@ export default function AdminPage() {
             {tab === "analytics" && <AnalyticsTab projects={projects} />}
             {tab === "leads" && <LeadsTab />}
             {tab === "referrals" && <ReferralTab />}
+            {tab === "market-intel" && <MarketIntelTab apiFetch={apiFetch} />}
             {tab === "proposals" && <div className="text-white/40 text-sm p-8 text-center bg-[hsl(220_24%_9%)] rounded-2xl border border-dashed border-[hsl(220_18%_22%)]">📄 Proposals module — Select a project from <button onClick={() => setTab("projects")} className="text-[#fbbf24] underline">Active Builds</button> and open the Finance/ROI tab to generate proposals.</div>}
             {tab === "designer" && <DesignerTab />}
             {tab === "projects" && <ProjectsTab adminName={adminName} />}

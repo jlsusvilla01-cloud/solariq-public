@@ -3,6 +3,7 @@ import type { Server } from "http";
 import { storage } from "./storage.js";
 import nodemailer from "nodemailer";
 import QRCode from "qrcode";
+import { insertCompetitorSchema } from "../shared/schema.js";
 
 function genToken() {
   return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
@@ -394,6 +395,29 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.patch("/api/admin/inventory/:id", requireAuth, async (req, res) => res.json(await storage.updateInventory(+req.params.id, req.body)));
 
   // ── Admin: Referrals (NEW) ──
+  // ── Admin: Market Intelligence (Competitors) ──
+  app.get("/api/admin/competitors", requireAuth, async (_req, res) => res.json(await storage.getAllCompetitors()));
+  app.post("/api/admin/competitors", requireAuth, async (req, res) => {
+    const parsed = insertCompetitorSchema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid competitor", issues: parsed.error.issues });
+    res.status(201).json(await storage.createCompetitor(parsed.data));
+  });
+  app.patch("/api/admin/competitors/:id", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+    const parsed = insertCompetitorSchema.partial().safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid competitor", issues: parsed.error.issues });
+    const updated = await storage.updateCompetitor(id, parsed.data);
+    if (!updated) return res.status(404).json({ error: "Competitor not found" });
+    res.json(updated);
+  });
+  app.delete("/api/admin/competitors/:id", requireAuth, async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+    await storage.deleteCompetitor(id);
+    res.json({ ok: true });
+  });
+
   app.get("/api/admin/referrals", requireAuth, async (_req, res) => res.json(await storage.getAllReferrals()));
 
   // ── Admin: Logistics/Crews (NEW) ──

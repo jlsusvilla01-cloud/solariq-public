@@ -1,5 +1,5 @@
-import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications, solarReadings, siteSurveys, users } from "@shared/schema";
-import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading, SiteSurvey, InsertSiteSurvey } from "@shared/schema";
+import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, competitors, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications, solarReadings, siteSurveys, users } from "@shared/schema";
+import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Competitor, InsertCompetitor, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading, SiteSurvey, InsertSiteSurvey } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client/web";
@@ -195,6 +195,54 @@ export class LibSQLStorage implements IStorage {
   async updateLead(id: number, data: Partial<Lead>) {
     const res = await db.update(leads).set(data).where(eq(leads.id, id)).returning().all();
     return res[0];
+  }
+
+  // Market Intelligence (Competitors)
+  // The table is created on first use so existing databases need no manual migration.
+  private competitorsReady: Promise<void> | null = null;
+  private ensureCompetitorsTable(): Promise<void> {
+    if (!this.competitorsReady) {
+      this.competitorsReady = client.execute(`CREATE TABLE IF NOT EXISTS competitors (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        base_location TEXT,
+        region TEXT NOT NULL DEFAULT '',
+        segment TEXT NOT NULL DEFAULT 'residential',
+        system_types TEXT,
+        grid_tie_price_per_kw REAL,
+        hybrid_price_per_kw REAL,
+        offers_financing INTEGER NOT NULL DEFAULT 0,
+        publishes_prices INTEGER NOT NULL DEFAULT 0,
+        net_metering_service INTEGER NOT NULL DEFAULT 0,
+        warranty_years INTEGER,
+        strengths TEXT,
+        weaknesses TEXT,
+        website TEXT,
+        source_url TEXT,
+        threat_level TEXT NOT NULL DEFAULT 'medium',
+        last_checked TEXT,
+        created_at TEXT NOT NULL DEFAULT ''
+      )`).then(() => undefined).catch((err: unknown) => { this.competitorsReady = null; throw err; });
+    }
+    return this.competitorsReady as Promise<void>;
+  }
+  async getAllCompetitors(): Promise<Competitor[]> {
+    await this.ensureCompetitorsTable();
+    return await db.select().from(competitors).all();
+  }
+  async createCompetitor(data: InsertCompetitor): Promise<Competitor> {
+    await this.ensureCompetitorsTable();
+    const res = await db.insert(competitors).values({ ...data, createdAt: new Date().toISOString() }).returning().all();
+    return res[0];
+  }
+  async updateCompetitor(id: number, data: Partial<InsertCompetitor>): Promise<Competitor | null> {
+    await this.ensureCompetitorsTable();
+    const res = await db.update(competitors).set(data).where(eq(competitors.id, id)).returning().all();
+    return res[0] || null;
+  }
+  async deleteCompetitor(id: number): Promise<void> {
+    await this.ensureCompetitorsTable();
+    await db.delete(competitors).where(eq(competitors.id, id)).run();
   }
 
   // Referrals
