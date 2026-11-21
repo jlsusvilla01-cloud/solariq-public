@@ -1,5 +1,5 @@
 import admin from "firebase-admin";
-import { IStorage } from "./storage-interface.js";
+import { IStorage, type Collection } from "./storage-interface.js";
 import { 
   Project, InsertProject, Milestone, InsertMilestone, Update, InsertUpdate, 
   Faq, InsertFaq, Testimonial, InsertTestimonial, PricingPlan, InsertPricing, 
@@ -73,6 +73,29 @@ export class FirebaseStorage implements IStorage {
   private async delete(col: string, id: number): Promise<void> {
     await this.db.collection(col).doc(id.toString()).delete();
   }
+
+  // ── Generic document helpers ──
+  // Firestore rejects undefined values, so they are dropped before writing.
+  private clean(data: Record<string, any>): Record<string, any> {
+    return Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
+  }
+  async docList<T = any>(col: Collection): Promise<T[]> { return this.getAll<T>(col); }
+  async docGet<T = any>(col: Collection, id: number): Promise<T | null> {
+    const snap = await this.db.collection(col).doc(id.toString()).get();
+    if (snap.exists) return snap.data() as T;
+    return this.getById<T>(col, id);
+  }
+  async docInsert<T = any>(col: Collection, data: Record<string, any>): Promise<T> {
+    return this.create<T>(col, this.clean(data));
+  }
+  async docUpdate<T = any>(col: Collection, id: number, data: Record<string, any>): Promise<T | null> {
+    const ref = this.db.collection(col).doc(id.toString());
+    const snap = await ref.get();
+    if (!snap.exists) return null;
+    await ref.update(this.clean(data));
+    return (await ref.get()).data() as T;
+  }
+  async docDelete(col: Collection, id: number): Promise<void> { await this.delete(col, id); }
 
   // ── Projects ──
   async getAllProjects() { return this.getAll<Project>("projects"); }
@@ -445,11 +468,7 @@ export class FirebaseStorage implements IStorage {
     const snap = await this.db.collection("users").where("email", "==", email).limit(1).get();
     return snap.empty ? undefined : (snap.docs[0].data() as User);
   }
-  async getUserById(id: number) { return this.getById<User>("users", id); }
-  async getUserByEmailAndPassword(email: string, password: string) {
-    const snap = await this.db.collection("users").where("email", "==", email).where("password", "==", password).limit(1).get();
-    return snap.empty ? undefined : (snap.docs[0].data() as User);
-  }
+  async getUserById(id: number) { return (await this.getById<User>("users", id)) ?? undefined; }
   async updateUserSubscription(id: number, data: Partial<User>) { return this.update<User>("users", id, data); }
   async findUserByGoogleId(googleId: string) {
     const snap = await this.db.collection("users").where("googleId", "==", googleId).limit(1).get();

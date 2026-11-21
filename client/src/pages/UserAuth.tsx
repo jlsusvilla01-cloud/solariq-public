@@ -130,7 +130,7 @@ export default function UserAuth({ mode = "signin" }: { mode?: "signin" | "signu
                   <label className="text-xs text-white/50 mb-1 block">Password</label>
                   <div className="relative">
                     <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20" />
-                    <Input value={password} onChange={e => setPassword(e.target.value)} type={showP ? "text" : "password"} placeholder="Min 6 characters" className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white h-10 pl-9 pr-10" required minLength={6} />
+                    <Input value={password} onChange={e => setPassword(e.target.value)} type={showP ? "text" : "password"} placeholder="At least 8 characters" className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white h-10 pl-9 pr-10" required minLength={8} />
                     <button type="button" onClick={() => setShowP(!showP)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors">
                       {showP ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>

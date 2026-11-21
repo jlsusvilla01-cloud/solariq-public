@@ -18,41 +18,42 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import MarketIntelTab from "@/components/MarketIntelTab";
+import LeadsPanel, { type Lead as WorkspaceLead } from "@/components/workspace/LeadsPanel";
+import ProposalsPanel from "@/components/workspace/ProposalsPanel";
+import SettingsPanel from "@/components/workspace/SettingsPanel";
+import { NetMeteringPanel, ReviewRequestButton } from "@/components/workspace/NetMeteringPanel";
+import { makeApi } from "@/lib/api";
 
-// ── In-memory auth ──
-let _adminToken = "";
-let _adminName = "";
-// Falls back to the token saved at login; the in-memory copy alone is empty after sign-in or a reload,
-// which made every authenticated admin request return 401.
-const getToken = () => {
-  if (_adminToken) return _adminToken;
-  try { return localStorage.getItem("solariq_admin_token") || ""; } catch { return ""; }
+// ── Admin session ──
+// Signed session token from /api/admin/login, kept in localStorage. Any 401 (expired or invalid
+// session) signs the admin out so they can log in again.
+const ADMIN_TOKEN_KEY = "solariq_admin_token";
+const signOutAdmin = () => {
+  try { localStorage.removeItem(ADMIN_TOKEN_KEY); localStorage.removeItem("solariq_admin_name"); } catch { /* ignore */ }
+  window.location.reload();
 };
-const authHeaders = () => ({ Authorization: `Basic ${getToken()}`, "Content-Type": "application/json" });
-const apiFetch = async (url: string, opts: any = {}) => {
-  const r = await fetch(url, { ...opts, headers: { ...authHeaders(), ...(opts.headers || {}) } });
-  if (!r.ok) throw new Error(await r.text());
-  return r.json();
-};
+const apiFetch = makeApi({ tokenKey: ADMIN_TOKEN_KEY, onUnauthorized: signOutAdmin });
+
+// Modules that still run on sample or simulated data are hidden unless "Show Labs" is on.
+const LABS_KEY = "solariq_show_labs";
+const labsEnabled = () => { try { return localStorage.getItem(LABS_KEY) === "1"; } catch { return false; } };
 
 // ── Login ──
 function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => void }) {
-  const [u, setU] = useState("admin"); const [p, setP] = useState("solariq2026");
+  const [u, setU] = useState(""); const [p, setP] = useState("");
   const [showP, setShowP] = useState(false);
   const [err, setErr] = useState(""); const [loading, setLoading] = useState(false);
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setErr(""); setLoading(true);
     try {
       const res = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: u, password: p }) });
-      if (!res.ok) { setErr("Invalid credentials"); return; }
-      const data = await res.json(); 
+      if (!res.ok) { const d = await res.json().catch(() => null); setErr(d?.error || "Invalid credentials"); return; }
+      const data = await res.json();
+      try { localStorage.setItem("solariq_admin_default_pw", data.usingDefaultPassword ? "1" : "0"); } catch { /* ignore */ }
       localStorage.setItem('solariq_admin_token', data.token);
       localStorage.setItem('solariq_admin_name', data.name);
       onLogin(data.token, data.name);
     } catch { setErr("Server error"); } finally { setLoading(false); }
-  };
-  const handleGoogleLogin = () => {
-    window.location.href = "/api/auth/google";
   };
   return (
     <div className="min-h-screen bg-[hsl(220_28%_6%)] flex items-center justify-center px-4 relative">
@@ -71,19 +72,9 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
           <h2 className="font-bold text-white mb-1 text-center">Admin Login</h2>
           <p className="text-white/40 text-xs text-center mb-6">Manage projects, teams & inventory</p>
 
-          <Button variant="outline" onClick={handleGoogleLogin} className="w-full mb-6 border-[hsl(220_18%_22%)] text-white hover:bg-white/5 font-bold flex items-center gap-2 transition-all">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-1 .67-2.28 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.67-.35-1.39-.35-2.09s.13-1.42.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.66l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-            Continue with Google
-          </Button>
-
-          <div className="relative mb-6">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[hsl(220_18%_18%)]"></div></div>
-            <div className="relative flex justify-center text-xs"><span className="bg-[hsl(220_24%_9%)] px-2 text-white/30 uppercase">or standard login</span></div>
-          </div>
-
           <form onSubmit={handleLogin} className="space-y-4">
             <div><label className="text-xs text-white/50 mb-1 block">Username</label>
-              <Input value={u} onChange={e => setU(e.target.value)} className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white h-10" /></div>
+              <Input value={u} onChange={e => setU(e.target.value)} autoComplete="username" className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white h-10" /></div>
             <div>
               <label className="text-xs text-white/50 mb-1 block">Password</label>
               <div className="relative">
@@ -105,9 +96,8 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
             {err && <p className="text-red-400 text-xs">{err}</p>}
             <Button type="submit" disabled={loading} className="w-full bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold h-10 hover:brightness-110 solar-glow-sm transition-all">{loading ? "Logging in..." : "Login"}</Button>
           </form>
-          <p className="text-center text-white/30 text-[10px] mt-6 leading-relaxed">Demo Admin: admin / solariq2026</p>
         </div>
-        <p className="text-center text-white/30 text-xs mt-8">Don't have an account? <span className="text-[#fbbf24] cursor-pointer hover:underline font-bold" onClick={handleGoogleLogin}>Sign up with Google</span></p>
+        <p className="text-center text-white/30 text-xs mt-8">Solar contractor? <Link href="/signin"><a className="text-[#fbbf24] hover:underline font-bold">Sign in to your dashboard</a></Link></p>
       </div>
     </div>
   );
@@ -198,7 +188,7 @@ function ProjectsTab({ adminName }: { adminName: string }) {
     { id: "updates", label: "Updates", icon: Send },
     { id: "photos", label: "Photos", icon: Camera },
     { id: "netmetering", label: "Net Metering", icon: CreditCard },
-    { id: "monitoring", label: "Monitoring", icon: Zap },
+    ...(labsEnabled() ? [{ id: "monitoring", label: "Monitoring (simulated)", icon: Zap }] : []),
     { id: "finance", label: "Finance / ROI", icon: DollarSign },
     { id: "qr", label: "QR Code", icon: QrCode },
     { id: "notif", label: "Notifications", icon: Bell },
@@ -417,36 +407,8 @@ function ProjectsTab({ adminName }: { adminName: string }) {
 
               {activeDetailTab === "netmetering" && (
                 <div className="space-y-4">
-                  <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10">
-                    <h4 className="text-xs font-black text-blue-400 uppercase tracking-widest mb-3">DU Application Lifecycle</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] text-white/50 uppercase font-black">Current Status</label>
-                        <Select value={sel.netMeteringStatus || 'pending'} onValueChange={v => updateProjectMutation.mutate({ id: sel.id, data: { netMeteringStatus: v } })}>
-                          <SelectTrigger className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pending">Pending Application</SelectItem>
-                            <SelectItem value="applied">Application Submitted</SelectItem>
-                            <SelectItem value="surveyed">Technical Survey Done</SelectItem>
-                            <SelectItem value="nma_signed">NMA Signed</SelectItem>
-                            <SelectItem value="meter_installed">Meter Installed</SelectItem>
-                            <SelectItem value="completed">Energization / Completed</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-white/50">Internal Notes / Phase Details</label>
-                    <textarea 
-                      value={sel.netMeteringNotes || ""} 
-                      onChange={e => updateProjectMutation.mutate({ id: sel.id, data: { netMeteringNotes: e.target.value } })}
-                      placeholder="Enter specific notes for this phase (visible to client)..."
-                      rows={3} 
-                      className="w-full bg-[hsl(220_20%_13%)] border border-[hsl(220_18%_22%)] text-white rounded-lg p-3 text-sm mt-1 resize-none focus:border-blue-500/50 transition-colors" 
-                    />
-                  </div>
-                  <p className="text-[10px] text-white/30 italic">Tip: Updating status triggers a push notification to the client's live tracker.</p>
+                  <NetMeteringPanel api={apiFetch} base="/api/admin" projectId={sel.id} />
+                  <div className="flex justify-end"><ReviewRequestButton api={apiFetch} base="/api/admin" projectId={sel.id} /></div>
                 </div>
               )}
 
@@ -791,6 +753,43 @@ function ProjectsTab({ adminName }: { adminName: string }) {
   );
 }
 
+// Manual activation for pilots and offline payments (bank transfer, cash, GCash send-money).
+function AccessControl({ user, onChanged }: { user: any; onChanged: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const inThirty = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+  const [form, setForm] = useState({ plan: user.subscriptionPlan || "professional", paidUntil: inThirty, amount: "0", note: "30-day pilot" });
+  const grant = useMutation({
+    mutationFn: (body: any) => apiFetch(`/api/admin/users/${user.id}/access`, { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { setOpen(false); onChanged(); toast({ title: "Access updated" }); },
+    onError: (e: any) => toast({ title: "Could not update access", description: e.message, variant: "destructive" }),
+  });
+  const until = user.paidUntil ? new Date(user.paidUntil).toLocaleDateString() : null;
+  if (!open) {
+    return (
+      <div className="space-y-1">
+        <div className="text-[10px] text-white/40">{until ? `Paid through ${until}` : "No paid access"}</div>
+        <button onClick={() => setOpen(true)} className="text-[10px] text-[#fbbf24] hover:underline font-bold">Grant or extend</button>
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-1.5 min-w-[220px]">
+      <select value={form.plan} onChange={e => setForm(f => ({ ...f, plan: e.target.value }))} className="w-full bg-[hsl(220_20%_13%)] border border-[hsl(220_18%_22%)] text-white text-[10px] rounded px-2 h-7">
+        {["starter", "professional", "enterprise"].map(p => <option key={p} value={p}>{p}</option>)}
+      </select>
+      <Input type="date" value={form.paidUntil} onChange={e => setForm(f => ({ ...f, paidUntil: e.target.value }))} className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white text-[10px] h-7" />
+      <Input placeholder="Amount received (₱)" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white text-[10px] h-7" />
+      <Input placeholder="Note" value={form.note} onChange={e => setForm(f => ({ ...f, note: e.target.value }))} className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white text-[10px] h-7" />
+      <div className="flex gap-1.5">
+        <Button onClick={() => grant.mutate({ ...form, amount: Number(form.amount) || 0 })} disabled={grant.isPending} className="bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold text-[10px] h-7 px-2">Save</Button>
+        {user.subscriptionStatus === "active" && <Button variant="outline" onClick={() => { if (window.confirm(`End ${user.name}'s access now?`)) grant.mutate({ action: "revoke" }); }} className="border-red-500/20 text-red-400 text-[10px] h-7 px-2">Revoke</Button>}
+        <Button variant="outline" onClick={() => setOpen(false)} className="border-white/10 text-white/50 text-[10px] h-7 px-2">Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
 // ── Users Tab ──
 function UsersTab() {
   const { data: users = [], isLoading, refetch } = useQuery<User[]>({ 
@@ -841,13 +840,14 @@ function UsersTab() {
               <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest">Status</th>
               <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest">Trial End</th>
               <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest">Plan</th>
+              <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest">Access</th>
               <th className="px-5 py-3 text-[10px] font-black text-white/30 uppercase tracking-widest text-right">Registered</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[hsl(220_18%_14%)]">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-white/20 text-xs italic">
+                <td colSpan={7} className="px-5 py-12 text-center text-white/20 text-xs italic">
                   {isLoading ? "Loading users..." : "No users found."}
                 </td>
               </tr>
@@ -875,6 +875,7 @@ function UsersTab() {
                 <td className="px-5 py-4">
                   <span className="text-[10px] font-black text-white/30 uppercase">{u.subscriptionPlan || "N/A"}</span>
                 </td>
+                <td className="px-5 py-4"><AccessControl user={u} onChanged={() => refetch()} /></td>
                 <td className="px-5 py-4 text-right text-[10px] text-white/20">
                   {new Date(u.createdAt).toLocaleDateString()}
                 </td>
@@ -1212,65 +1213,6 @@ function LogisticsTab() {
 }
 
 // ── NEW: Leads CRM Tab ──
-function LeadsTab() {
-  const { data: leads = [] } = useQuery<Lead[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
-  
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center bg-white/5 p-6 rounded-2xl border border-white/10 backdrop-blur-md">
-        <div>
-          <h2 className="text-2xl font-black text-white flex items-center gap-3">
-            <Users size={24} className="text-[#fbbf24]" /> Sales Pipeline
-          </h2>
-          <p className="text-white/40 text-sm mt-1">Nurturing {leads.length} active opportunities in the Philippines.</p>
-        </div>
-        <Button className="bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold">
-          <Plus size={16} className="mr-2" /> Add Prospect
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {['new', 'contacted', 'quoted', 'closed'].map((status) => (
-          <div key={status} className="space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-white/5 px-2">
-              <span className="text-[10px] font-black uppercase text-white/40 tracking-widest">{status}</span>
-              <span className="bg-white/5 text-[9px] px-2 py-0.5 rounded text-white/60">
-                {leads.filter(l => l.status === status).length}
-              </span>
-            </div>
-            
-            <div className="space-y-3">
-              {leads.filter(l => l.status === status).length > 0 ? (
-                leads.filter(l => l.status === status).map(lead => (
-                  <Card key={lead.id} className="bg-[hsl(220_24%_9%)] border-white/5 p-4 hover:border-[#fbbf24]/20 transition-all cursor-move group">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="text-sm font-bold text-white group-hover:text-[#fbbf24] transition-colors">{lead.clientName}</h4>
-                      <Badge className="bg-blue-500/10 text-blue-400 border-none text-[8px] px-1.5 h-4 uppercase">{lead.source}</Badge>
-                    </div>
-                    <p className="text-[10px] text-white/40 mb-3 truncate">{lead.notes || "No additional notes provided."}</p>
-                    <div className="flex items-center gap-3 mt-4 pt-3 border-t border-white/5">
-                      <div className="flex -space-x-1">
-                        {[1,2,3].map(i => <div key={i} className="w-4 h-4 rounded-full bg-white/10 border border-black" />)}
-                      </div>
-                      <div className="flex-1 h-1 bg-white/5 rounded-full overflow-hidden">
-                        <div className="h-full bg-[#fbbf24]" style={{ width: '40%' }} />
-                      </div>
-                    </div>
-                  </Card>
-                ))
-              ) : (
-                <div className="py-8 text-center border border-dashed border-white/5 rounded-xl">
-                  <p className="text-[10px] text-white/10 uppercase font-black tracking-widest">No leads in this stage</p>
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── NEW: Procurement & Supplier Marketplace ──
 function ProcurementTab() {
   const { data: vendors = [] } = useQuery<Vendor[]>({ queryKey: ["/api/admin/vendors"], queryFn: () => apiFetch("/api/admin/vendors") });
@@ -1928,6 +1870,50 @@ function ServiceTab() {
 }
 
 // ── ERP: Analytics Tab ──
+// ── Setup checklist: what still needs configuring before contractors pay ──
+function SetupChecklist() {
+  const { toast } = useToast();
+  const { data: st, refetch } = useQuery<any>({ queryKey: ["/api/admin/system-status"], queryFn: () => apiFetch("/api/admin/system-status") });
+  const [pw, setPw] = useState({ current: "", next: "" });
+  const change = useMutation({
+    mutationFn: () => apiFetch("/api/admin/password", { method: "POST", body: JSON.stringify({ currentPassword: pw.current, newPassword: pw.next }) }),
+    onSuccess: () => { setPw({ current: "", next: "" }); refetch(); toast({ title: "Admin password changed" }); },
+    onError: (e: any) => toast({ title: "Could not change password", description: e.message, variant: "destructive" }),
+  });
+  if (!st) return null;
+  const items = [
+    { ok: st.storage.persistent, label: "Data is saved permanently", fix: st.storage.problem || "Connect a database." },
+    { ok: !st.defaultAdminPassword, label: "Admin password changed from the old default", fix: "Set a new password below." },
+    { ok: st.payments, label: "Online payments (PayMongo)", fix: "Add PAYMONGO_SECRET_KEY and PAYMONGO_WEBHOOK_SECRET in Vercel." },
+    { ok: st.email, label: "Email sending", fix: "Add SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASS in Vercel." },
+    { ok: st.sms, label: "SMS sending (Semaphore)", fix: "Add SEMAPHORE_API_KEY in Vercel." },
+    { ok: st.appUrl, label: "Public site address set", fix: "Add APP_URL (for example https://solariq-public.vercel.app) in Vercel." },
+    { ok: st.sessionSecret === "SESSION_SECRET" || st.sessionSecret === "derived", label: "Stable sign-in sessions", fix: "Add SESSION_SECRET (any random text, 32+ characters) in Vercel." },
+  ];
+  const open = items.filter(i => !i.ok);
+  if (open.length === 0) return null;
+  return (
+    <div className={`rounded-2xl border p-5 space-y-3 ${st.storage.persistent ? "border-[#fbbf24]/20 bg-[#fbbf24]/5" : "border-red-500/30 bg-red-500/5"}`}>
+      <div className="text-sm font-black text-white flex items-center gap-2"><AlertTriangle size={15} className={st.storage.persistent ? "text-[#fbbf24]" : "text-red-400"} />Setup checklist · {items.length - open.length} of {items.length} done</div>
+      <div className="space-y-1.5">
+        {items.map(i => (
+          <div key={i.label} className="flex gap-2 text-[11px]">
+            {i.ok ? <CheckCircle2 size={13} className="text-green-400 shrink-0 mt-0.5" /> : <AlertCircle size={13} className="text-orange-400 shrink-0 mt-0.5" />}
+            <div><span className={i.ok ? "text-white/50" : "text-white"}>{i.label}</span>{!i.ok && <span className="text-white/45"> — {i.fix}</span>}</div>
+          </div>
+        ))}
+      </div>
+      {st.defaultAdminPassword && (
+        <div className="flex flex-wrap items-end gap-2 pt-2 border-t border-white/10">
+          <Input type="password" placeholder="Current password" autoComplete="current-password" value={pw.current} onChange={e => setPw(p => ({ ...p, current: e.target.value }))} className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white text-xs h-8 w-44" />
+          <Input type="password" placeholder="New password (8+ characters)" autoComplete="new-password" value={pw.next} onChange={e => setPw(p => ({ ...p, next: e.target.value }))} className="bg-[hsl(220_20%_13%)] border-[hsl(220_18%_22%)] text-white text-xs h-8 w-56" />
+          <Button onClick={() => change.mutate()} disabled={change.isPending || pw.next.length < 8} className="bg-[#fbbf24] text-[hsl(220_28%_6%)] font-bold text-xs h-8">Change password</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardTab({ projects }: { projects: any[] }) {
   const { data: leads = [] } = useQuery<any[]>({ queryKey: ["/api/admin/leads"], queryFn: () => apiFetch("/api/admin/leads") });
   const { data: accounts = [] } = useQuery<any[]>({ queryKey: ["/api/admin/accounts"], queryFn: () => apiFetch("/api/admin/accounts") });
@@ -2457,6 +2443,8 @@ export default function AdminPage() {
   const [adminName, setAdminName] = useState(localStorage.getItem('solariq_admin_name') || "");
   const [tab, setTab] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [proposalLead, setProposalLead] = useState<WorkspaceLead | null>(null);
+  const [showLabs, setShowLabs] = useState(labsEnabled());
 
   const handleLogin = (token: string, name: string) => { 
     localStorage.setItem('solariq_admin_token', token);
@@ -2487,7 +2475,7 @@ export default function AdminPage() {
       group: "CRM & SALES",
       items: [
         { id: "leads", label: "Leads CRM", icon: Target },
-        { id: "referrals", label: "Referrals", icon: Users },
+        { id: "referrals", label: "Referrals", icon: Users, labs: true },
         { id: "proposals", label: "Proposals", icon: FileText },
         { id: "market-intel", label: "Market Intel", icon: Crosshair },
       ]
@@ -2495,7 +2483,7 @@ export default function AdminPage() {
     {
       group: "PROJECTS",
       items: [
-        { id: "designer", label: "AI Designer", icon: Cpu },
+        { id: "designer", label: "Panel Layout Sketch", icon: Cpu, labs: true },
         { id: "projects", label: "Active Builds", icon: ClipboardList },
         { id: "scheduling", label: "Crew Scheduling", icon: MapPin },
         { id: "service", label: "After-Sales Service", icon: RefreshCw },
@@ -2506,8 +2494,8 @@ export default function AdminPage() {
       items: [
         { id: "inventory", label: "Inventory", icon: Package },
         { id: "bom", label: "Bill of Materials", icon: Receipt },
-        { id: "procurement", label: "Procurement", icon: ShoppingCart },
-        { id: "logistics", label: "Logistics & Fleet", icon: Truck },
+        { id: "procurement", label: "Procurement", icon: ShoppingCart, labs: true },
+        { id: "logistics", label: "Logistics & Fleet", icon: Truck, labs: true },
       ]
     },
     {
@@ -2526,7 +2514,9 @@ export default function AdminPage() {
     {
       group: "PLATFORM",
       items: [
-        { id: "tenants", label: "Tenants", icon: Building2 },
+        { id: "users", label: "Contractors & Billing", icon: CreditCard },
+        { id: "settings", label: "Company Settings", icon: Info },
+        { id: "tenants", label: "Tenants", icon: Building2, labs: true },
         { id: "pricing", label: "SaaS Plans", icon: Star },
         { id: "faqs", label: "FAQ / Help", icon: Info },
       ]
@@ -2536,11 +2526,12 @@ export default function AdminPage() {
   const tabLabels: Record<string, string> = {
     dashboard: "Executive Dashboard", analytics: "Analytics & Business Intelligence",
     leads: "Leads CRM", referrals: "Referral Engine", proposals: "Proposals", "market-intel": "Market Intelligence",
-    designer: "AI Solar Designer", projects: "Active Project Builds", service: "After-Sales Service",
+    designer: "Panel Layout Sketch", projects: "Active Project Builds", service: "After-Sales Service",
     inventory: "Inventory Management", bom: "Bill of Materials", procurement: "Procurement",
     scheduling: "Crew Scheduling & Gantt",
     logistics: "Logistics & Fleet", hr: "HR & Payroll", finance: "Finance & Accounting",
-    compliance: "Compliance Calendar", tenants: "Multi-Tenant Accounts", users: "Users & Subscriptions", pricing: "SaaS Pricing", faqs: "FAQ Manager",
+    compliance: "Compliance Calendar", tenants: "Multi-Tenant Accounts", users: "Contractors & Billing", pricing: "SaaS Pricing", faqs: "FAQ Manager",
+    settings: "Company Settings",
   };
 
   return (
@@ -2557,18 +2548,22 @@ export default function AdminPage() {
         </div>
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 space-y-5">
-          {modules.map(({ group, items }) => (
+          {modules.map(({ group, items }) => ({ group, items: (items as any[]).filter(i => showLabs || !i.labs) })).filter(m => m.items.length > 0).map(({ group, items }) => (
             <div key={group}>
               <div className="text-[8px] font-black text-white/20 uppercase tracking-[0.2em] px-3 mb-1.5">{group}</div>
               <div className="space-y-0.5">
-                {items.map(({ id, label, icon: Icon }) => (
+                {items.map(({ id, label, icon: Icon, labs }: any) => (
                   <button key={id} onClick={() => { setTab(id); setSidebarOpen(false); }} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs transition-all text-left ${tab === id ? "bg-[#fbbf24] text-[hsl(220_28%_6%)] font-black shadow-lg shadow-[#fbbf24]/10" : "text-white/40 hover:text-white hover:bg-[hsl(220_20%_14%)]"}`}>
-                    <Icon size={14} />{label}
+                    <Icon size={14} />{label}{labs && <span className="ml-auto text-[8px] font-black uppercase tracking-wider opacity-60">Labs</span>}
                   </button>
                 ))}
               </div>
             </div>
           ))}
+          <label className="flex items-center gap-2 px-3 text-[10px] text-white/30 cursor-pointer" title="Modules that still use sample or simulated data">
+            <input type="checkbox" checked={showLabs} onChange={e => { const v = e.target.checked; setShowLabs(v); try { localStorage.setItem(LABS_KEY, v ? "1" : "0"); } catch { /* ignore */ } }} className="accent-[#fbbf24]" />
+            Show Labs modules (sample data)
+          </label>
         </nav>
         {/* User Footer */}
         <div className="px-4 py-4 border-t border-[hsl(220_18%_14%)] shrink-0">
@@ -2609,12 +2604,13 @@ export default function AdminPage() {
             </div>
 
             {/* Tab content */}
-            {tab === "dashboard" && <DashboardTab projects={projects} />}
+            {tab === "dashboard" && <div className="space-y-6"><SetupChecklist /><DashboardTab projects={projects} /></div>}
             {tab === "analytics" && <AnalyticsTab projects={projects} />}
-            {tab === "leads" && <LeadsTab />}
+            {tab === "leads" && <LeadsPanel api={apiFetch} base="/api/admin" onCreateProposal={l => { setProposalLead(l); setTab("proposals"); }} />}
             {tab === "referrals" && <ReferralTab />}
             {tab === "market-intel" && <MarketIntelTab apiFetch={apiFetch} />}
-            {tab === "proposals" && <div className="text-white/40 text-sm p-8 text-center bg-[hsl(220_24%_9%)] rounded-2xl border border-dashed border-[hsl(220_18%_22%)]">📄 Proposals module — Select a project from <button onClick={() => setTab("projects")} className="text-[#fbbf24] underline">Active Builds</button> and open the Finance/ROI tab to generate proposals.</div>}
+            {tab === "proposals" && <ProposalsPanel api={apiFetch} base="/api/admin" fromLead={proposalLead} onLeadUsed={() => setProposalLead(null)} />}
+            {tab === "settings" && <SettingsPanel api={apiFetch} base="/api/admin" />}
             {tab === "designer" && <DesignerTab />}
             {tab === "projects" && <ProjectsTab adminName={adminName} />}
             {tab === "service" && <ServiceTab />}

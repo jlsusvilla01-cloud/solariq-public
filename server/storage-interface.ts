@@ -29,10 +29,27 @@ import type {
   Notification, InsertNotification, 
   Admin, SolarReading, InsertReading, 
   SiteSurvey, InsertSiteSurvey,
-  User, InsertUser
+  User, InsertUser,
+  Referral, Vendor,
 } from "@shared/schema";
 
+/** Collections reachable through the generic document helpers below. */
+export type Collection =
+  | "admins" | "users" | "projects" | "leads" | "competitors"
+  | "contractor_profiles" | "sales_proposals" | "net_metering_trackers" | "message_log" | "billing_events";
+
 export interface IStorage {
+  /** Optional one-time setup (creating tables). Called once at startup. */
+  init?(): Promise<void>;
+
+  // Generic document helpers used by the contractor workspace, auth and billing.
+  // Filtering happens in application code, so these stay identical across backends.
+  docList<T = any>(col: Collection): Promise<T[]>;
+  docGet<T = any>(col: Collection, id: number): Promise<T | null>;
+  docInsert<T = any>(col: Collection, data: Record<string, any>): Promise<T>;
+  docUpdate<T = any>(col: Collection, id: number, data: Record<string, any>): Promise<T | null>;
+  docDelete(col: Collection, id: number): Promise<void>;
+
   // Projects
   getAllProjects(): Promise<Project[]>;
   getProject(id: number): Promise<Project | null>;
@@ -213,7 +230,6 @@ export interface IStorage {
   createUser(data: InsertUser): Promise<User>;
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserById(id: number): Promise<User | undefined>;
-  getUserByEmailAndPassword(email: string, password: string): Promise<User | undefined>;
   updateUserSubscription(id: number, data: Partial<User>): Promise<User>;
   findUserByGoogleId(googleId: string): Promise<User | undefined>;
   getProjectsByUserId(userId: number): Promise<Project[]>;

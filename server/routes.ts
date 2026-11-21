@@ -1,78 +1,49 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage.js";
-import nodemailer from "nodemailer";
 import QRCode from "qrcode";
 import { insertCompetitorSchema } from "../shared/schema.js";
+import { storageStatus } from "./storage.js";
+import {
+  hashPassword, verifyPassword, signSession, verifySession, bearerToken, randomToken,
+  rateLimited, clientIp, publicUser, MIN_PASSWORD_LENGTH, DEFAULT_ADMIN_PASSWORD, sessionSecretSource,
+} from "./auth.js";
+import { sendEmail, emailHtml, emailConfigured, smsConfigured } from "./messaging.js";
+import { registerWorkspaceRoutes } from "./workspace-routes.js";
+import { registerBillingRoutes } from "./billing-routes.js";
 
 function genToken() {
-  return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+  return randomToken(12);
 }
 
-// Email transporter — uses ethereal (test) if no SMTP env vars set
-async function getTransporter() {
-  if (process.env.SMTP_HOST) {
-    return nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    });
-  }
-  // Create ethereal test account for demo
-  const testAccount = await nodemailer.createTestAccount();
-  return nodemailer.createTransport({
-    host: "smtp.ethereal.email",
-    port: 587,
-    auth: { user: testAccount.user, pass: testAccount.pass },
-  });
+/** Public base URL for links in emails and redirects. */
+export function appUrl(req: any): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0] || req.protocol;
+  return `${proto}://${req.get("host")}`;
 }
 
-async function sendNotificationEmail(to: string, clientName: string, projectName: string, message: string, trackingUrl: string) {
-  try {
-    const transporter = await getTransporter();
-    const info = await transporter.sendMail({
-      from: '"SolarIQ" <noreply@solariq.app>',
-      to,
-      subject: `Solar Installation Update — ${projectName}`,
-      html: `
-        <div style="font-family:Inter,sans-serif;max-width:600px;margin:0 auto;background:#0f1117;color:#e5e7eb;padding:32px;border-radius:12px">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
-            <div style="width:36px;height:36px;background:#fbbf24;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px">☀️</div>
-            <span style="font-weight:700;font-size:18px;color:#fff">Solar<span style="color:#fbbf24">IQ</span></span>
-          </div>
-          <h2 style="color:#fff;margin:0 0 8px">Hi ${clientName},</h2>
-          <p style="color:#9ca3af;margin:0 0 20px">Your solar installation has a new update:</p>
-          <div style="background:#1f2937;border:1px solid #374151;border-radius:8px;padding:16px;margin-bottom:24px">
-            <p style="color:#e5e7eb;margin:0;line-height:1.6">${message}</p>
-          </div>
-          <a href="${trackingUrl}" style="background:#fbbf24;color:#0f1117;font-weight:700;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block">
-            View Full Progress →
-          </a>
-          <p style="color:#6b7280;font-size:12px;margin-top:24px">
-            You're receiving this because you have a solar installation project tracked by SolarIQ.<br/>
-            <a href="${trackingUrl}" style="color:#fbbf24">${trackingUrl}</a>
-          </p>
-        </div>
-      `,
-    });
-    console.log("Email sent:", nodemailer.getTestMessageUrl(info));
-    return { ok: true, previewUrl: nodemailer.getTestMessageUrl(info) };
-  } catch (e: any) {
-    console.error("Email error:", e.message);
-    return { ok: false, error: e.message };
-  }
+async function sendNotificationEmail(to: string, clientName: string, message: string, trackingUrl: string, projectId: number, userId: number | null) {
+  return sendEmail(
+    to,
+    `Solar installation update for ${clientName}`,
+    emailHtml(`Hi ${clientName},`, ["Your solar installation has a new update:", message], { label: "View full progress", url: trackingUrl }),
+    { purpose: "project_update", projectId, userId },
+  );
+}
+
+/** Fields that must never reach the public tracking page. */
+function publicProject<T extends Record<string, any>>(p: T) {
+  const { clientPortalPin: _pin, contractorNotes: _notes, ...rest } = p;
+  return rest;
 }
 
 export async function registerRoutes(httpServer: Server, app: Express) {
   // ── Health Check (for Vercel debugging) ──
-  app.get("/api/health", (_req, res) => res.json({ 
-    status: "ok", 
-    uptime: process.uptime(),
-    env: process.env.NODE_ENV,
-    isVercel: !!process.env.VERCEL,
-    storage: storage.constructor.name,
-    memory: process.memoryUsage(),
-    node: process.version
+  app.get("/api/health", (_req, res) => res.json({
+    status: "ok",
+    storage: storageStatus.mode,
+    persistent: storageStatus.persistent,
   }));
 
   // ── Public: Landing data ──
@@ -91,8 +62,11 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     const qts = await storage.getQuotationsByProject(project.id);
     const docs = await storage.getDocumentsByProject(project.id);
     const pays = await storage.getPaymentsByProject(project.id);
+    const trackers = await storage.docList("net_metering_trackers");
+    const tracker = trackers.find((t: any) => t.projectId === project.id);
     res.json({
-      project,
+      project: publicProject(project),
+      netMeteringSteps: tracker ? JSON.parse(tracker.stepsJson) : null,
       milestones: ms.sort((a, b) => a.sortOrder - b.sortOrder),
       updates: upd.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
       photos,
@@ -107,7 +81,7 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.get("/api/qr/:token", async (req, res) => {
     const project = await storage.getProjectByToken(req.params.token);
     if (!project) return res.status(404).json({ error: "Not found" });
-    const host = `${req.protocol}://${req.get("host")}`;
+    const host = appUrl(req);
     const trackUrl = `${host}/#/track/${req.params.token}`;
     const qrDataUrl = await QRCode.toDataURL(trackUrl, {
       width: 300,
@@ -140,88 +114,98 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   });
 
   // ── Admin Auth ──
+  const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+
+  async function findAdmin(username: string) {
+    const all = await storage.docList("admins");
+    return all.find((a: any) => a.username === username) ?? null;
+  }
+
+  // On the live site the old published default password is refused; ADMIN_PASSWORD is the way in.
+  const isLive = !!process.env.VERCEL || process.env.NODE_ENV === "production";
+
+  /** Creates the first admin account on an empty database (from ADMIN_PASSWORD on the live site). */
+  async function ensureFirstAdmin() {
+    const all = await storage.docList("admins");
+    if (all.length > 0) return;
+    if (isLive && !process.env.ADMIN_PASSWORD) return;
+    await storage.docInsert("admins", {
+      username: ADMIN_USERNAME,
+      password: hashPassword(process.env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD),
+      name: "SolarIQ Admin",
+      email: null,
+      googleId: null,
+    });
+  }
+
   app.post("/api/admin/login", async (req, res) => {
-    const { username, password } = req.body;
-    const admin = await storage.getAdmin(username, password);
-    if (!admin) return res.status(401).json({ error: "Invalid credentials" });
-    res.json({ ok: true, name: admin.name, token: Buffer.from(`${username}:${password}`).toString("base64") });
-  });
-
-  // ── Google OAuth (Mocked for Demo) ──
-  // In a real app, you'd use Passport with GoogleStrategy and real Client IDs.
-  // We're providing the infrastructure here so you can easily swap it.
-  app.get("/api/auth/google", (req, res) => {
-    // Redirect to a mock Google consent screen
-    const callbackUrl = `${req.protocol}://${req.get("host")}/api/auth/google/callback?code=mock_code`;
-    res.send(`
-      <div style="font-family:sans-serif;text-align:center;padding:100px;background:#0f1117;color:white;height:100vh">
-        <h1 style="color:#fbbf24">Mock Google Login</h1>
-        <p>In production, this would be accounts.google.com</p>
-        <a href="${callbackUrl}" style="background:#fbbf24;color:#0f1117;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">
-          Continue as demo@solariq.app
-        </a>
-      </div>
-    `);
-  });
-
-  app.get("/api/auth/google/callback", async (req, res) => {
-    try {
-      // Mock user info from "Google"
-      const mockUser = {
-        googleId: "google-12345",
-        email: "demo@solariq.app",
-        displayName: "Solar Champion",
-      };
-
-      let admin = await storage.findAdminByGoogleId(mockUser.googleId);
-      if (!admin) {
-        console.log("Creating new admin from Google OAuth...");
-        admin = await storage.createAdmin({
-          username: mockUser.email,
-          password: "oauth-user",
-          name: mockUser.displayName,
-          email: mockUser.email,
-          googleId: mockUser.googleId,
-        });
-      }
-
-      const token = Buffer.from(`${admin.username}:oauth-user`).toString("base64");
-      res.send(`
-        <script>
-          localStorage.setItem('solariq_admin_name', '${admin.name}');
-          localStorage.setItem('solariq_admin_token', '${token}');
-          window.location.href = '/#/admin';
-        </script>
-      `);
-    } catch (e: any) {
-      console.error("Auth callback error:", e);
-      res.status(500).send(`Authentication error: ${e.message}`);
+    const ip = clientIp(req);
+    if (rateLimited(`admin-login:${ip}`, 10, 15 * 60_000)) {
+      return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again." });
     }
+    const username = String(req.body?.username ?? "").trim();
+    const password = String(req.body?.password ?? "");
+    if (!username || !password) return res.status(400).json({ error: "Username and password are required." });
+    if (isLive && password === DEFAULT_ADMIN_PASSWORD) {
+      return res.status(403).json({ error: "The old default admin password is disabled on the live site. Set ADMIN_PASSWORD in Vercel's environment variables, redeploy, and sign in with that." });
+    }
+    await ensureFirstAdmin();
+    const admin: any = await findAdmin(username);
+
+    // ADMIN_PASSWORD in the environment always works for the main admin, so a lost password can be recovered.
+    const envPassword = process.env.ADMIN_PASSWORD;
+    const envMatch = !!envPassword && username === ADMIN_USERNAME && verifyPassword(password, envPassword).ok;
+    const check = admin ? verifyPassword(password, admin.password) : { ok: false, needsRehash: false };
+    if (!admin || (!check.ok && !envMatch)) return res.status(401).json({ error: "Invalid credentials" });
+
+    if (check.needsRehash || envMatch) await storage.docUpdate("admins", admin.id, { password: hashPassword(password) });
+    res.json({
+      ok: true,
+      name: admin.name,
+      token: signSession(admin.id, "admin"),
+      usingDefaultPassword: password === DEFAULT_ADMIN_PASSWORD,
+    });
   });
 
   const requireAuth = async (req: any, res: any, next: any) => {
     try {
-      const auth = req.headers.authorization;
-      if (!auth?.startsWith("Basic ")) return res.status(401).json({ error: "Unauthorized" });
-      const [u, p] = Buffer.from(auth.slice(6), "base64").toString().split(":");
-      
-      // For OAuth users, we accept our placeholder password
-      if (p === "oauth-user") {
-          const admin = await storage.findAdminByEmail(u);
-          if (admin) {
-              next();
-              return;
-          }
-      }
-      
-      const admin = await storage.getAdmin(u, p);
+      const session = verifySession(bearerToken(req), "admin");
+      if (!session) return res.status(401).json({ error: "Unauthorized" });
+      const admin = await storage.docGet("admins", session.sub);
       if (!admin) return res.status(401).json({ error: "Unauthorized" });
+      req.adminId = session.sub;
       next();
     } catch (e) {
       console.error("Auth middleware error:", e);
-      res.status(401).json({ error: "Unauthorized (Session Error)" });
+      res.status(401).json({ error: "Unauthorized" });
     }
   };
+
+  app.post("/api/admin/password", requireAuth, async (req: any, res) => {
+    const current = String(req.body?.currentPassword ?? "");
+    const next = String(req.body?.newPassword ?? "");
+    if (next.length < MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Use at least ${MIN_PASSWORD_LENGTH} characters.` });
+    if (next === DEFAULT_ADMIN_PASSWORD) return res.status(400).json({ error: "Choose a password other than the old default." });
+    const admin: any = await storage.docGet("admins", req.adminId);
+    if (!admin || !verifyPassword(current, admin.password).ok) return res.status(401).json({ error: "Current password is wrong." });
+    await storage.docUpdate("admins", admin.id, { password: hashPassword(next) });
+    res.json({ ok: true });
+  });
+
+  // What still needs setting up, shown as a checklist in the admin portal.
+  app.get("/api/admin/system-status", requireAuth, async (req: any, res) => {
+    const admin: any = await storage.docGet("admins", req.adminId);
+    res.json({
+      storage: storageStatus,
+      defaultAdminPassword: admin ? verifyPassword(DEFAULT_ADMIN_PASSWORD, admin.password).ok : false,
+      sessionSecret: sessionSecretSource,
+      adminPasswordSet: !!process.env.ADMIN_PASSWORD,
+      payments: !!process.env.PAYMONGO_SECRET_KEY && !!process.env.PAYMONGO_WEBHOOK_SECRET,
+      email: emailConfigured(),
+      sms: smsConfigured(),
+      appUrl: !!process.env.APP_URL,
+    });
+  });
 
   // ── Admin: Projects ──
   app.get("/api/admin/projects", requireAuth, async (_req, res) => res.json(await storage.getAllProjects()));
@@ -298,9 +282,9 @@ export async function registerRoutes(httpServer: Server, app: Express) {
       const notif = await storage.getNotifPref(updated!.projectId);
       const project = await storage.getProject(updated!.projectId);
       if (notif?.emailEnabled && notif.email && project) {
-        const host = `${req.protocol}://${req.get("host")}`;
+        const host = appUrl(req);
         const trackUrl = `${host}/#/track/${project.shareToken}`;
-        sendNotificationEmail(notif.email, project.clientName, project.clientName, `Milestone completed: "${updated!.title}". Your installation is now ${pct}% complete.`, trackUrl);
+        sendNotificationEmail(notif.email, project.clientName, `Milestone completed: "${updated!.title}". Your installation is now ${pct}% complete.`, trackUrl, project.id, (project as any).userId ?? null);
       }
     }
     res.json(updated);
@@ -318,9 +302,9 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     const notif = await storage.getNotifPref(+req.params.id);
     const project = await storage.getProject(+req.params.id);
     if (notif?.emailEnabled && notif.email && project) {
-      const host = `${req.protocol}://${req.get("host")}`;
+      const host = appUrl(req);
       const trackUrl = `${host}/#/track/${project.shareToken}`;
-      const result = await sendNotificationEmail(notif.email, project.clientName, project.clientName, update.message, trackUrl);
+      const result = await sendNotificationEmail(notif.email, project.clientName, update.message, trackUrl, project.id, (project as any).userId ?? null);
       return res.status(201).json({ update, emailResult: result });
     }
     res.status(201).json({ update });
@@ -351,7 +335,7 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.get("/api/admin/qr/:token", requireAuth, async (req, res) => {
     const project = await storage.getProjectByToken(req.params.token);
     if (!project) return res.status(404).json({ error: "Not found" });
-    const host = `${req.protocol}://${req.get("host")}`;
+    const host = appUrl(req);
     const trackUrl = `${host}/#/track/${req.params.token}`;
     const qrDataUrl = await QRCode.toDataURL(trackUrl, { width: 400, margin: 2, color: { dark: "#000000", light: "#ffffff" } });
     res.json({ qrDataUrl, trackUrl, clientName: project.clientName });
@@ -396,17 +380,19 @@ export async function registerRoutes(httpServer: Server, app: Express) {
 
   // ── Admin: Referrals (NEW) ──
   // ── Admin: Market Intelligence (Competitors) ──
-  app.get("/api/admin/competitors", requireAuth, async (_req, res) => res.json(await storage.getAllCompetitors()));
+  app.get("/api/admin/competitors", requireAuth, async (_req, res) => res.json((await storage.getAllCompetitors()).filter((c: any) => (c.userId ?? null) === null)));
   app.post("/api/admin/competitors", requireAuth, async (req, res) => {
     const parsed = insertCompetitorSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid competitor", issues: parsed.error.issues });
-    res.status(201).json(await storage.createCompetitor(parsed.data));
+    res.status(201).json(await storage.createCompetitor({ ...parsed.data, userId: null } as any));
   });
   app.patch("/api/admin/competitors/:id", requireAuth, async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
     const parsed = insertCompetitorSchema.partial().safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: "Invalid competitor", issues: parsed.error.issues });
+    const existing = (await storage.getAllCompetitors()).find((c: any) => c.id === id);
+    if (!existing || ((existing as any).userId ?? null) !== null) return res.status(404).json({ error: "Competitor not found" });
     const updated = await storage.updateCompetitor(id, parsed.data);
     if (!updated) return res.status(404).json({ error: "Competitor not found" });
     res.json(updated);
@@ -414,6 +400,8 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.delete("/api/admin/competitors/:id", requireAuth, async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+    const existing = (await storage.getAllCompetitors()).find((c: any) => c.id === id);
+    if (!existing || ((existing as any).userId ?? null) !== null) return res.status(404).json({ error: "Competitor not found" });
     await storage.deleteCompetitor(id);
     res.json({ ok: true });
   });
@@ -429,9 +417,7 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   app.post("/api/admin/designs", requireAuth, async (req, res) => res.status(201).json(await storage.createDesign(req.body)));
 
   // ── Admin: Leads ──
-  app.get("/api/admin/leads", requireAuth, async (_req, res) => res.json(await storage.getAllLeads()));
-  app.post("/api/admin/leads", requireAuth, async (req, res) => res.status(201).json(await storage.createLead(req.body)));
-  app.patch("/api/admin/leads/:id", requireAuth, async (req, res) => res.json(await storage.updateLead(+req.params.id, req.body)));
+  // Admin leads now live in the shared workspace routes (see workspace-routes.ts).
 
   // ── Admin: Referrals ──
   app.get("/api/admin/referrals", requireAuth, async (_req, res) => res.json(await storage.getAllReferrals()));
@@ -455,8 +441,12 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   // ── Client Portal Auth (Feature 3) ──
   app.post("/api/client/login", async (req, res) => {
     const { token, pin } = req.body;
-    const project = await storage.getProjectByTokenAndPin(token, pin);
-    if (!project) return res.status(401).json({ error: "Invalid PIN or link." });
+    if (rateLimited(`client-pin:${clientIp(req)}:${token}`, 8, 15 * 60_000)) {
+      return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again." });
+    }
+    const found = await storage.getProjectByTokenAndPin(token, pin);
+    if (!found) return res.status(401).json({ error: "Invalid PIN or link." });
+    const project = publicProject(found) as typeof found;
     const ms = await storage.getMilestonesByProject(project.id);
     const docs = await storage.getDocumentsByProject(project.id);
     const pays = await storage.getPaymentsByProject(project.id);
@@ -566,7 +556,7 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   });
 
   app.get("/api/admin/users", requireAuth, async (_req, res) => {
-    res.json(await storage.getAllUsers());
+    res.json((await storage.getAllUsers()).map(publicUser));
   });
 
   app.post("/api/admin/projects/:id/survey", requireAuth, async (req, res) => {
@@ -582,25 +572,49 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   // ══════════════════════════════════════════════════════════════
 
   // ── User Registration ──
+  const userView = (u: any) => ({
+    id: u.id, name: u.name, email: u.email, company: u.company,
+    trialStartDate: u.trialStartDate, trialEndDate: u.trialEndDate,
+    subscriptionStatus: u.subscriptionStatus, subscriptionPlan: u.subscriptionPlan,
+    billingCycle: u.billingCycle, paidUntil: u.paidUntil ?? null,
+  });
+
+  /** Trial ends after 15 days; a paid plan ends at paidUntil unless renewed. */
+  async function refreshAccess(user: any) {
+    const now = Date.now();
+    let status = user.subscriptionStatus;
+    if (status === "trial" && new Date(user.trialEndDate).getTime() < now) status = "expired";
+    if (status === "active" && (!user.paidUntil || new Date(user.paidUntil).getTime() < now)) status = "expired";
+    if (status !== user.subscriptionStatus) {
+      await storage.updateUserSubscription(user.id, { subscriptionStatus: status });
+      user.subscriptionStatus = status;
+    }
+    return user;
+  }
+
   app.post("/api/user/register", async (req, res) => {
     try {
-      const { email, password, name, company, phone } = req.body;
-      if (!email || !password || !name) {
-        return res.status(400).json({ error: "Name, email, and password are required." });
+      if (rateLimited(`register:${clientIp(req)}`, 10, 60 * 60_000)) {
+        return res.status(429).json({ error: "Too many sign-ups from this connection. Try again later." });
       }
-      // Check if email already exists
+      const email = String(req.body?.email ?? "").trim().toLowerCase();
+      const password = String(req.body?.password ?? "");
+      const name = String(req.body?.name ?? "").trim().slice(0, 120);
+      const company = String(req.body?.company ?? "").trim().slice(0, 120) || null;
+      const phone = String(req.body?.phone ?? "").trim().slice(0, 40) || null;
+      if (!email || !password || !name) return res.status(400).json({ error: "Name, email, and password are required." });
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Enter a valid email address." });
+      if (password.length < MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Use a password of at least ${MIN_PASSWORD_LENGTH} characters.` });
       const existing = await storage.getUserByEmail(email);
-      if (existing) {
-        return res.status(409).json({ error: "An account with this email already exists." });
-      }
+      if (existing) return res.status(409).json({ error: "An account with this email already exists." });
       const now = new Date();
       const trialEnd = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000); // 15 days
       const user = await storage.createUser({
         email,
-        password, // In production, hash this
+        password: hashPassword(password),
         name,
-        company: company || null,
-        phone: phone || null,
+        company,
+        phone,
         googleId: null,
         trialStartDate: now.toISOString(),
         trialEndDate: trialEnd.toISOString(),
@@ -608,46 +622,30 @@ export async function registerRoutes(httpServer: Server, app: Express) {
         subscriptionPlan: null,
         billingCycle: null,
         subscriptionStartDate: null,
+        paidUntil: null,
         createdAt: now.toISOString(),
       });
-      const token = Buffer.from(`user:${user.id}:${user.email}`).toString("base64");
-      res.status(201).json({
-        ok: true,
-        token,
-        user: { id: user.id, name: user.name, email: user.email, company: user.company, trialEndDate: user.trialEndDate, subscriptionStatus: user.subscriptionStatus },
-      });
+      res.status(201).json({ ok: true, token: signSession(user.id, "user"), user: userView(user) });
     } catch (e: any) {
       console.error("Registration error:", e);
-      res.status(500).json({ error: "Registration failed: " + e.message });
+      res.status(500).json({ error: "Registration failed. Please try again." });
     }
   });
 
   // ── User Login ──
   app.post("/api/user/login", async (req, res) => {
     try {
-      const { email, password } = req.body;
-      const user = await storage.getUserByEmailAndPassword(email, password);
-      if (!user) return res.status(401).json({ error: "Invalid email or password." });
-
-      // Check/update trial expiration
-      const now = new Date();
-      const trialEnd = new Date(user.trialEndDate);
-      if (user.subscriptionStatus === "trial" && now > trialEnd) {
-        await storage.updateUserSubscription(user.id, { subscriptionStatus: "expired" });
-        user.subscriptionStatus = "expired";
+      const email = String(req.body?.email ?? "").trim().toLowerCase();
+      const password = String(req.body?.password ?? "");
+      if (rateLimited(`user-login:${clientIp(req)}`, 15, 15 * 60_000) || rateLimited(`user-login-acct:${email}`, 10, 15 * 60_000)) {
+        return res.status(429).json({ error: "Too many attempts. Wait 15 minutes and try again." });
       }
-
-      const token = Buffer.from(`user:${user.id}:${user.email}`).toString("base64");
-      res.json({
-        ok: true,
-        token,
-        user: {
-          id: user.id, name: user.name, email: user.email, company: user.company,
-          trialStartDate: user.trialStartDate, trialEndDate: user.trialEndDate,
-          subscriptionStatus: user.subscriptionStatus, subscriptionPlan: user.subscriptionPlan,
-          billingCycle: user.billingCycle,
-        },
-      });
+      const user: any = await storage.getUserByEmail(email);
+      const check = user ? verifyPassword(password, user.password) : { ok: false, needsRehash: false };
+      if (!user || !check.ok) return res.status(401).json({ error: "Invalid email or password." });
+      if (check.needsRehash) await storage.updateUserSubscription(user.id, { password: hashPassword(password) } as any);
+      await refreshAccess(user);
+      res.json({ ok: true, token: signSession(user.id, "user"), user: userView(user) });
     } catch (e: any) {
       res.status(500).json({ error: "Login failed." });
     }
@@ -656,88 +654,74 @@ export async function registerRoutes(httpServer: Server, app: Express) {
   // ── User Auth Middleware ──
   const requireUser = async (req: any, res: any, next: any) => {
     try {
-      const auth = req.headers.authorization;
-      if (!auth?.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
-      const decoded = Buffer.from(auth.slice(7), "base64").toString();
-      const parts = decoded.split(":");
-      if (parts[0] !== "user" || !parts[1]) return res.status(401).json({ error: "Invalid token" });
-
-      const userId = parseInt(parts[1]);
-      const user = await storage.getUserById(userId);
-      if (!user) return res.status(401).json({ error: "User not found" });
-
-      // Check subscription status
-      const now = new Date();
-      const trialEnd = new Date(user.trialEndDate);
-      if (user.subscriptionStatus === "trial" && now > trialEnd) {
-        await storage.updateUserSubscription(user.id, { subscriptionStatus: "expired" });
-        user.subscriptionStatus = "expired";
-      }
-
+      const session = verifySession(bearerToken(req), "user");
+      if (!session) return res.status(401).json({ error: "Please sign in again." });
+      const user = await storage.getUserById(session.sub);
+      if (!user) return res.status(401).json({ error: "Please sign in again." });
+      await refreshAccess(user);
       req.userId = user.id;
       req.user = user;
       next();
     } catch (e) {
-      res.status(401).json({ error: "Authentication failed" });
+      res.status(401).json({ error: "Please sign in again." });
     }
   };
 
   // ── Get Current User Profile ──
   app.get("/api/user/me", requireUser, async (req: any, res) => {
-    const user = req.user;
-    res.json({
-      id: user.id, name: user.name, email: user.email, company: user.company,
-      trialStartDate: user.trialStartDate, trialEndDate: user.trialEndDate,
-      subscriptionStatus: user.subscriptionStatus, subscriptionPlan: user.subscriptionPlan,
-      billingCycle: user.billingCycle,
-    });
+    res.json(userView(req.user));
   });
 
-  // ── Subscribe (Mock Payment) ──
-  app.post("/api/user/subscribe", requireUser, async (req: any, res) => {
-    try {
-      const { plan, billingCycle } = req.body;
-      if (!plan || !billingCycle) return res.status(400).json({ error: "Plan and billing cycle required." });
-
-      const updated = await storage.updateUserSubscription(req.userId, {
-        subscriptionStatus: "active",
-        subscriptionPlan: plan,
-        billingCycle,
-        subscriptionStartDate: new Date().toISOString(),
-      });
-      res.json({
-        ok: true,
-        user: {
-          id: updated.id, name: updated.name, email: updated.email,
-          subscriptionStatus: updated.subscriptionStatus, subscriptionPlan: updated.subscriptionPlan,
-          billingCycle: updated.billingCycle,
-        },
-      });
-    } catch (e: any) {
-      res.status(500).json({ error: "Subscription failed: " + e.message });
-    }
+  app.post("/api/user/password", requireUser, async (req: any, res) => {
+    const current = String(req.body?.currentPassword ?? "");
+    const next = String(req.body?.newPassword ?? "");
+    if (next.length < MIN_PASSWORD_LENGTH) return res.status(400).json({ error: `Use at least ${MIN_PASSWORD_LENGTH} characters.` });
+    if (!verifyPassword(current, req.user.password).ok) return res.status(401).json({ error: "Current password is wrong." });
+    await storage.updateUserSubscription(req.userId, { password: hashPassword(next) } as any);
+    res.json({ ok: true });
   });
 
-  // ── User Projects (with trial/subscription gate) ──
+  // ── Write access requires an active trial or paid plan ──
   const requireActiveUser = async (req: any, res: any, next: any) => {
     await requireUser(req, res, () => {
-      if (req.user?.subscriptionStatus === "expired") {
-        return res.status(402).json({ error: "Trial expired. Please subscribe to continue.", subscriptionStatus: "expired" });
+      if (req.user?.subscriptionStatus === "expired" || req.user?.subscriptionStatus === "cancelled") {
+        return res.status(402).json({ error: "Your trial or plan has ended. Choose a plan to continue.", subscriptionStatus: "expired" });
       }
       next();
     });
   };
 
+  async function ownedProject(req: any, id: number) {
+    const project = await storage.getProject(id);
+    return project && (project as any).userId === req.userId ? project : null;
+  }
+
   app.get("/api/user/projects", requireUser, async (req: any, res) => {
-    // Allow viewing projects even when expired (to show paywall context)
-    const projects = await storage.getProjectsByUserId(req.userId);
-    res.json(projects);
+    // Viewing stays open after expiry so the contractor can still see their work behind the paywall.
+    res.json(await storage.getProjectsByUserId(req.userId));
   });
 
   app.post("/api/user/projects", requireActiveUser, async (req: any, res) => {
-    const data = { ...req.body, shareToken: genToken(), userId: req.userId, createdAt: new Date().toISOString() };
+    const b = req.body ?? {};
+    const clientName = String(b.clientName ?? "").trim().slice(0, 120);
+    const address = String(b.address ?? "").trim().slice(0, 300);
+    if (!clientName || !address) return res.status(400).json({ error: "Client name and address are required." });
+    const num = (v: any, d: number) => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : d);
+    const data: any = {
+      clientName,
+      clientEmail: String(b.clientEmail ?? "").trim().slice(0, 200) || null,
+      clientPhone: String(b.clientPhone ?? "").trim().slice(0, 40) || null,
+      address,
+      systemKw: num(b.systemKw, 6),
+      panelCount: Math.round(num(b.panelCount, 0)),
+      contractValue: num(b.contractValue, 0),
+      status: "survey",
+      overallProgress: 0,
+      shareToken: genToken(),
+      userId: req.userId,
+      createdAt: new Date().toISOString(),
+    };
     const proj = await storage.createProject(data);
-    // Create default milestones
     const defaults = [
       ["Site Survey & Assessment", "Roof assessment, shading analysis, structural review", "survey", 1],
       ["System Design", "Panel layout, inverter selection, electrical design", "design", 2],
@@ -757,26 +741,42 @@ export async function registerRoutes(httpServer: Server, app: Express) {
     res.status(201).json(proj);
   });
 
-  // User can view their project details via share token
   app.get("/api/user/projects/:id", requireUser, async (req: any, res) => {
-    const project = await storage.getProject(+req.params.id);
-    if (!project || (project as any).userId !== req.userId) return res.status(404).json({ error: "Project not found." });
+    const project = await ownedProject(req, +req.params.id);
+    if (!project) return res.status(404).json({ error: "Project not found." });
     const ms = await storage.getMilestonesByProject(project.id);
     const upd = await storage.getUpdatesByProject(project.id);
-    res.json({ project, milestones: ms, updates: upd });
+    res.json({ project, milestones: ms.sort((a, b) => a.sortOrder - b.sortOrder), updates: upd });
   });
 
-  // User can update milestones on their own projects
+  // Contractors can update milestones only on their own projects.
   app.patch("/api/user/milestones/:id", requireActiveUser, async (req: any, res) => {
-    const data = { ...req.body };
-    if (data.status === "completed" && !data.completedAt) data.completedAt = new Date().toISOString();
-    const updated = await storage.updateMilestone(+req.params.id, data);
-    // Recalculate progress
+    const id = +req.params.id;
+    const projects = await storage.getProjectsByUserId(req.userId);
+    let target: any = null;
+    for (const p of projects) {
+      const ms = await storage.getMilestonesByProject(p.id);
+      target = ms.find(m => m.id === id);
+      if (target) break;
+    }
+    if (!target) return res.status(404).json({ error: "Milestone not found." });
+    const status = req.body?.status;
+    if (!["pending", "in_progress", "completed", "blocked"].includes(status)) return res.status(400).json({ error: "Invalid status." });
+    const data: any = { status };
+    if (status === "completed") data.completedAt = new Date().toISOString();
+    if (typeof req.body?.note === "string") data.note = req.body.note.slice(0, 1000);
+    const updated = await storage.updateMilestone(id, data);
     const allMs = await storage.getMilestonesByProject(updated!.projectId);
     const done = allMs.filter(m => m.status === "completed").length;
     const pct = allMs.length ? Math.round((done / allMs.length) * 100) : 0;
     await storage.updateProject(updated!.projectId, { overallProgress: pct, status: updated!.phase });
     res.json(updated);
   });
+
+  registerWorkspaceRoutes(app, { requireAuth, requireUser, requireActiveUser, appUrl });
+  registerBillingRoutes(app, { requireAuth, requireUser, appUrl });
+
+  // Unknown API paths get a JSON 404 instead of falling through to the web app.
+  app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 }
 
