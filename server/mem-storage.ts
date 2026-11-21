@@ -15,6 +15,7 @@ import type {
   Inventory, InsertInventory, 
   Design, InsertDesign, 
   Lead, InsertLead, 
+  Competitor, InsertCompetitor,
   Crew, InsertCrew, 
   Proposal, InsertProposal, 
   ServiceJob, InsertServiceJob, 
@@ -62,6 +63,7 @@ export class MemStorage implements IStorage {
   private notifications = new Map<number, Notification>();
   private designs = new Map<number, Design>();
   private leads = new Map<number, Lead>();
+  private competitors = new Map<number, Competitor>();
   private serviceJobs = new Map<number, ServiceJob>();
   private clientMessages = new Map<number, ClientMessage>();
   private users = new Map<number, User>();
@@ -71,7 +73,7 @@ export class MemStorage implements IStorage {
     photos: 1, signatures: 1, notifs: 1, admins: 1, readings: 1, surveys: 1,
     quotations: 1, documents: 1, payments: 1, inventory: 1, crews: 1, tenants: 1,
     employees: 1, timesheets: 1, journals: 1, compliance: 1, bom: 1, stocks: 1,
-    schedules: 1, notifications: 1, designs: 1, leads: 1, serviceJobs: 1, clientMessages: 1, users: 1
+    schedules: 1, notifications: 1, designs: 1, leads: 1, competitors: 1, serviceJobs: 1, clientMessages: 1, users: 1
   };
 
   constructor() {
@@ -268,6 +270,22 @@ export class MemStorage implements IStorage {
   async getAllLeads() { return Array.from(this.leads.values()) as any[]; }
   async createLead(data: any) { const id = this.currentIds.leads++; const l = {...data, id}; this.leads.set(id, l); return l as any; }
   async updateLead(id: number, data: any) { const l = this.leads.get(id); const u = {...l, ...data}; this.leads.set(id, u); return u as any; }
+
+  async getAllCompetitors() { return Array.from(this.competitors.values()); }
+  async createCompetitor(data: InsertCompetitor) {
+    const id = this.currentIds.competitors++;
+    const c = { ...data, id, createdAt: new Date().toISOString() } as Competitor;
+    this.competitors.set(id, c);
+    return c;
+  }
+  async updateCompetitor(id: number, data: Partial<InsertCompetitor>) {
+    const c = this.competitors.get(id);
+    if (!c) return null;
+    const u = { ...c, ...data } as Competitor;
+    this.competitors.set(id, u);
+    return u;
+  }
+  async deleteCompetitor(id: number) { this.competitors.delete(id); }
 
   async getAllReferrals() { return []; }
   async getReferralsByProject(pid: number) { return []; }

@@ -5,7 +5,7 @@ import {
   Faq, InsertFaq, Testimonial, InsertTestimonial, PricingPlan, InsertPricing, 
   MilestonePhoto, InsertMilestonePhoto, Signature, InsertSignature, 
   NotificationPref, InsertNotif, Quotation, InsertQuotation, Document, InsertDocument, 
-  Payment, InsertPayment, Inventory, Design, InsertDesign, Lead, InsertLead, 
+  Payment, InsertPayment, Inventory, Design, InsertDesign, Lead, InsertLead, Competitor, InsertCompetitor, 
   Referral, Vendor, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, 
   ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, 
   Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, 
@@ -242,6 +242,18 @@ export class FirebaseStorage implements IStorage {
     return this.create<Lead>("leads", { ...data, createdAt: new Date().toISOString() });
   }
   async updateLead(id: number, data: Partial<Lead>) { return this.update<Lead>("leads", id, data); }
+
+  // ── Market Intelligence (Competitors) ──
+  async getAllCompetitors() { return this.getAll<Competitor>("competitors"); }
+  async createCompetitor(data: InsertCompetitor) {
+    return this.create<Competitor>("competitors", { ...data, createdAt: new Date().toISOString() });
+  }
+  async updateCompetitor(id: number, data: Partial<InsertCompetitor>) {
+    const existing = await this.getById<Competitor>("competitors", id);
+    if (!existing) return null;
+    return this.update<Competitor>("competitors", id, data);
+  }
+  async deleteCompetitor(id: number) { return this.delete("competitors", id); }
 
   // ── Referrals ──
   async getAllReferrals() { return this.getAll<Referral>("referrals"); }
