@@ -414,6 +414,33 @@ export function registerWorkspaceRoutes(app: Express, deps: Deps) {
     res.status(201).json({ ok: true, estimate });
   });
 
+  // ── Demo requests from the SolarIQ landing page → SolarIQ's own (admin) lead pipeline ──
+  app.post("/api/public/demo-request", async (req, res) => {
+    const ip = clientIp(req);
+    if (rateLimited(`demo-ip:${ip}`, 5, 60 * 60_000) || rateLimited("demo-all", 200, 60 * 60_000)) {
+      return res.status(429).json({ error: "Too many requests. Please try again later." });
+    }
+    const b = req.body ?? {};
+    if (b.website) return res.status(201).json({ ok: true }); // hidden field filled = bot; pretend success
+    const name = String(b.name ?? "").trim().slice(0, 120);
+    const company = String(b.company ?? "").trim().slice(0, 160);
+    const email = String(b.email ?? "").trim().slice(0, 200);
+    const phone = String(b.phone ?? "").trim().slice(0, 40);
+    const installs = String(b.installs ?? "").trim().slice(0, 40);
+    if (!name || !company) return res.status(400).json({ error: "Please enter your name and company." });
+    if (!phone && !email) return res.status(400).json({ error: "Please give a mobile number or email so we can reach you." });
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: "Please enter a valid email address." });
+
+    const lead = await storage.docInsert("leads", {
+      clientName: name, clientPhone: phone || null, clientEmail: email || null, address: null, monthlyBill: null,
+      source: "web", status: "new", score: 7,
+      notes: [`SolarIQ demo request`, `Company: ${company}`, installs ? `Installs per month: ${installs}` : ""].filter(Boolean).join("\n"),
+      userId: null, createdAt: now(),
+    });
+    await alertContractor(null, lead, await getOrCreateProfile(null));
+    res.status(201).json({ ok: true });
+  });
+
   // ── Public proposal view ──
   app.get("/api/public/proposals/:token", async (req, res) => {
     const p: any = (await storage.docList("sales_proposals")).find((x: any) => x.shareToken === req.params.token);
