@@ -203,6 +203,7 @@ export const users = sqliteTable("users", {
   subscriptionPlan: text("subscription_plan"), // starter | professional | enterprise
   billingCycle: text("billing_cycle"), // month | year
   subscriptionStartDate: text("subscription_start_date"),
+  paidUntil: text("paid_until"), // access ends after this date unless renewed
   createdAt: text("created_at").notNull(),
 });
 
@@ -301,6 +302,9 @@ export const leads = sqliteTable("leads", {
   score: integer("score").default(0), // 1-10 priority
   notes: text("notes"),
   createdAt: text("created_at").notNull(),
+  userId: integer("user_id"), // null = SolarIQ admin workspace, set = contractor-owned
+  monthlyBill: real("monthly_bill"),
+  address: text("address"),
 });
 
 export const insertLeadSchema = createInsertSchema(leads).omit({ id: true });
@@ -583,6 +587,7 @@ export const competitors = sqliteTable("competitors", {
   threatLevel: text("threat_level").notNull().default("medium"), // low|medium|high
   lastChecked: text("last_checked"),
   createdAt: text("created_at").notNull().default(""),
+  userId: integer("user_id"), // null = SolarIQ admin workspace
 });
 
 const httpUrl = z.string().trim().max(500).refine(v => v === "" || /^https?:\/\//i.test(v), "Must start with http:// or https://");
@@ -601,3 +606,147 @@ export const insertCompetitorSchema = createInsertSchema(competitors, {
 }).omit({ id: true, createdAt: true });
 export type InsertCompetitor = z.infer<typeof insertCompetitorSchema>;
 export type Competitor = typeof competitors.$inferSelect;
+
+// ── Contractor workspace ──
+// Contractor profile: branding, defaults for proposals, alert contacts and the public quote page.
+export const contractorProfiles = sqliteTable("contractor_profiles", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id").notNull(), // 0 = SolarIQ admin workspace
+  slug: text("slug").notNull(),
+  companyName: text("company_name").notNull().default(""),
+  contactPhone: text("contact_phone"),
+  contactEmail: text("contact_email"),
+  notifyEmail: text("notify_email"),
+  notifyPhone: text("notify_phone"),
+  messengerUrl: text("messenger_url"),
+  reviewUrl: text("review_url"),
+  serviceArea: text("service_area"),
+  gridPricePerKw: real("grid_price_per_kw"),
+  hybridPricePerKw: real("hybrid_price_per_kw"),
+  utilityRate: real("utility_rate"),
+  financeMonths: integer("finance_months"),
+  financeAprPct: real("finance_apr_pct"),
+  downPaymentPct: real("down_payment_pct"),
+  proposalValidDays: integer("proposal_valid_days"),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+export type ContractorProfile = typeof contractorProfiles.$inferSelect;
+
+const optionalText = (max: number) => z.string().trim().max(max).nullable().optional().transform(v => (v ? v : null));
+const optionalUrl = z.string().trim().max(500).nullable().optional()
+  .refine(v => !v || /^https:\/\//i.test(v), "Must start with https://").transform(v => (v ? v : null));
+const optionalNum = (min: number, max: number) => z.number().min(min).max(max).nullable().optional();
+export const contractorProfileInputSchema = z.object({
+  companyName: z.string().trim().min(1).max(120),
+  slug: z.string().trim().toLowerCase().regex(/^[a-z0-9](?:[a-z0-9-]{1,48}[a-z0-9])$/, "Use 3-50 lowercase letters, numbers or dashes").optional(),
+  contactPhone: optionalText(40),
+  contactEmail: z.string().trim().email().max(200).nullable().optional().or(z.literal("")).transform(v => (v ? v : null)),
+  notifyEmail: z.string().trim().email().max(200).nullable().optional().or(z.literal("")).transform(v => (v ? v : null)),
+  notifyPhone: optionalText(40),
+  messengerUrl: optionalUrl,
+  reviewUrl: optionalUrl,
+  serviceArea: optionalText(200),
+  gridPricePerKw: optionalNum(1000, 500000),
+  hybridPricePerKw: optionalNum(1000, 500000),
+  utilityRate: optionalNum(1, 100),
+  financeMonths: z.number().int().min(0).max(120).nullable().optional(),
+  financeAprPct: optionalNum(0, 60),
+  downPaymentPct: optionalNum(0, 100),
+  proposalValidDays: z.number().int().min(1).max(365).nullable().optional(),
+});
+export type ContractorProfileInput = z.infer<typeof contractorProfileInputSchema>;
+
+// Sales proposals: built from a customer's bill, priced from the contractor's defaults.
+export const salesProposals = sqliteTable("sales_proposals", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id"), // null = SolarIQ admin workspace
+  leadId: integer("lead_id"),
+  shareToken: text("share_token").notNull(),
+  clientName: text("client_name").notNull(),
+  clientPhone: text("client_phone"),
+  clientEmail: text("client_email"),
+  address: text("address"),
+  inputsJson: text("inputs_json").notNull(), // ProposalInputs
+  resultJson: text("result_json").notNull(), // ProposalResult, computed on the server
+  notes: text("notes"),
+  status: text("status").notNull().default("draft"), // draft|sent|accepted|declined
+  validUntil: text("valid_until"),
+  acceptedAt: text("accepted_at"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull().default(""),
+});
+export type SalesProposal = typeof salesProposals.$inferSelect;
+
+export const proposalInputSchema = z.object({
+  leadId: z.number().int().positive().nullable().optional(),
+  clientName: z.string().trim().min(1).max(120),
+  clientPhone: optionalText(40),
+  clientEmail: z.string().trim().email().max(200).nullable().optional().or(z.literal("")).transform(v => (v ? v : null)),
+  address: optionalText(300),
+  notes: optionalText(1000),
+  monthlyBill: z.number().positive().max(10_000_000),
+  utilityRate: z.number().min(1).max(100),
+  systemType: z.enum(["grid", "hybrid"]),
+  pricePerKw: z.number().min(1000).max(500_000),
+  systemKw: z.number().min(0.5).max(100).nullable().optional(),
+  batteryKwh: z.number().min(0).max(1000).nullable().optional(),
+  extrasAmount: z.number().min(0).max(50_000_000).nullable().optional(),
+  discountAmount: z.number().min(0).max(50_000_000).nullable().optional(),
+  financeMonths: z.number().int().min(0).max(120).nullable().optional(),
+  financeAprPct: z.number().min(0).max(60).nullable().optional(),
+  downPaymentPct: z.number().min(0).max(100).nullable().optional(),
+});
+export type ProposalInput = z.infer<typeof proposalInputSchema>;
+
+// Net-metering checklist, one row per project.
+export const netMeteringTrackers = sqliteTable("net_metering_trackers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  projectId: integer("project_id").notNull(),
+  stepsJson: text("steps_json").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+export type NetMeteringTracker = typeof netMeteringTrackers.$inferSelect;
+
+// Every email and SMS the system tries to send, so contractors can see what went out.
+export const messageLog = sqliteTable("message_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id"),
+  projectId: integer("project_id"),
+  leadId: integer("lead_id"),
+  channel: text("channel").notNull(), // email|sms
+  purpose: text("purpose").notNull(), // lead_alert|review_request|proposal|project_update
+  recipient: text("recipient").notNull(),
+  status: text("status").notNull(), // sent|failed|skipped
+  detail: text("detail"),
+  createdAt: text("created_at").notNull(),
+});
+export type MessageLogEntry = typeof messageLog.$inferSelect;
+
+// Subscription payments through PayMongo.
+export const billingEvents = sqliteTable("billing_events", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id").notNull(),
+  provider: text("provider").notNull().default("paymongo"),
+  checkoutId: text("checkout_id"),
+  plan: text("plan").notNull(),
+  billingCycle: text("billing_cycle").notNull(),
+  amount: real("amount").notNull(), // PHP
+  status: text("status").notNull().default("pending"), // pending|paid|failed|manual
+  note: text("note"),
+  createdAt: text("created_at").notNull(),
+  paidAt: text("paid_at"),
+});
+export type BillingEvent = typeof billingEvents.$inferSelect;
+
+export const leadInputSchema = z.object({
+  clientName: z.string().trim().min(1).max(120),
+  clientEmail: z.string().trim().email().max(200).nullable().optional().or(z.literal("")).transform(v => (v ? v : null)),
+  clientPhone: optionalText(40),
+  source: z.enum(["web", "referral", "walk-in", "facebook", "quote_form", "other"]).optional().default("other"),
+  status: z.enum(["new", "contacted", "survey_scheduled", "quoted", "closed_won", "closed_lost"]).optional().default("new"),
+  score: z.number().int().min(0).max(10).nullable().optional(),
+  notes: optionalText(2000),
+  monthlyBill: z.number().min(0).max(10_000_000).nullable().optional(),
+  address: optionalText(300),
+});
+export type LeadInput = z.infer<typeof leadInputSchema>;

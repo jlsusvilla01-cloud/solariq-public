@@ -8,6 +8,8 @@ import TrackPage from "@/pages/Track";
 import AdminPage from "@/pages/Admin";
 import UserAuth from "@/pages/UserAuth";
 import UserDashboard from "@/pages/UserDashboard";
+import QuotePage from "@/pages/Quote";
+import ProposalView from "@/pages/ProposalView";
 import NotFound from "@/pages/not-found";
 
 export default function App() {
@@ -22,6 +24,9 @@ export default function App() {
           <Route path="/signin">{() => <UserAuth mode="signin" />}</Route>
           <Route path="/signup">{() => <UserAuth mode="signup" />}</Route>
           <Route path="/dashboard" component={UserDashboard} />
+          <Route path="/dashboard/:tab" component={UserDashboard} />
+          <Route path="/quote/:slug" component={QuotePage} />
+          <Route path="/p/:token" component={ProposalView} />
           <Route component={NotFound} />
         </Switch>
       </Router>

@@ -47,9 +47,10 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
+      // Status and timing only: response bodies can hold session tokens and customers' personal data.
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+      if (res.statusCode >= 400 && capturedJsonResponse && typeof (capturedJsonResponse as any).error === "string") {
+        logLine += ` :: ${(capturedJsonResponse as any).error}`;
       }
 
       log(logLine);

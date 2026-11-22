@@ -1,9 +1,9 @@
-import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, competitors, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications, solarReadings, siteSurveys, users } from "@shared/schema";
-import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Competitor, InsertCompetitor, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading, SiteSurvey, InsertSiteSurvey } from "@shared/schema";
+import { projects, milestones, updates, faqs, testimonials, pricingPlans, admins, milestonePhotos, signatures, notificationPrefs, quotations, documents, payments, inventory, designs, leads, competitors, referrals, vendors, purchaseOrders, crews, proposals, serviceJobs, clientMessages, tenants, employees, timesheets, chartOfAccounts, journalEntries, complianceItems, bomTemplates, stockTransactions, schedules, notifications, solarReadings, siteSurveys, users, contractorProfiles, salesProposals, netMeteringTrackers, messageLog, billingEvents } from "@shared/schema";
+import type { InsertProject, Project, InsertMilestone, Milestone, InsertUpdate, Update, InsertFaq, Faq, InsertTestimonial, Testimonial, InsertPricing, PricingPlan, InsertMilestonePhoto, MilestonePhoto, InsertSignature, Signature, InsertNotif, NotificationPref, InsertQuotation, Quotation, InsertDocument, Document, InsertPayment, Payment, InsertInventory, Inventory, InsertDesign, Design, Lead, InsertLead, Competitor, InsertCompetitor, Referral, Vendor, PurchaseOrder, Crew, InsertCrew, Proposal, InsertProposal, ServiceJob, InsertServiceJob, ClientMessage, InsertClientMessage, Tenant, InsertTenant, Employee, InsertEmployee, Timesheet, InsertTimesheet, ChartOfAccount, JournalEntry, ComplianceItem, BomTemplate, StockTransaction, InsertStockTransaction, Schedule, InsertSchedule, Notification, InsertNotification, Admin, InsertAdmin, SolarReading, InsertReading, SiteSurvey, InsertSiteSurvey, User, InsertUser } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client/web";
-import { IStorage } from "./storage-interface.js";
+import { IStorage, type Collection } from "./storage-interface.js";
 
 let db: any;
 let client: any;
@@ -14,6 +14,82 @@ export class LibSQLStorage implements IStorage {
       url: process.env.DATABASE_URL || "file:local.db"
     });
     db = drizzle(client);
+  }
+
+  // ── Schema setup ──
+  // New tables are created and new columns added on startup, so existing databases need no manual migration.
+  private schemaReady: Promise<void> | null = null;
+  async init(): Promise<void> {
+    if (!this.schemaReady) {
+      this.schemaReady = (async () => {
+        await this.ensureCompetitorsTable();
+        const statements = [
+          `CREATE TABLE IF NOT EXISTS contractor_profiles (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, slug TEXT NOT NULL, company_name TEXT NOT NULL DEFAULT '', contact_phone TEXT, contact_email TEXT, notify_email TEXT, notify_phone TEXT, messenger_url TEXT, review_url TEXT, service_area TEXT, grid_price_per_kw REAL, hybrid_price_per_kw REAL, utility_rate REAL, finance_months INTEGER, finance_apr_pct REAL, down_payment_pct REAL, proposal_valid_days INTEGER, updated_at TEXT NOT NULL DEFAULT '')`,
+          `CREATE TABLE IF NOT EXISTS sales_proposals (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, lead_id INTEGER, share_token TEXT NOT NULL, client_name TEXT NOT NULL, client_phone TEXT, client_email TEXT, address TEXT, inputs_json TEXT NOT NULL, result_json TEXT NOT NULL, notes TEXT, status TEXT NOT NULL DEFAULT 'draft', valid_until TEXT, accepted_at TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT '')`,
+          `CREATE TABLE IF NOT EXISTS net_metering_trackers (id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL, steps_json TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+          `CREATE TABLE IF NOT EXISTS message_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, project_id INTEGER, lead_id INTEGER, channel TEXT NOT NULL, purpose TEXT NOT NULL, recipient TEXT NOT NULL, status TEXT NOT NULL, detail TEXT, created_at TEXT NOT NULL)`,
+          `CREATE TABLE IF NOT EXISTS billing_events (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, provider TEXT NOT NULL DEFAULT 'paymongo', checkout_id TEXT, plan TEXT NOT NULL, billing_cycle TEXT NOT NULL, amount REAL NOT NULL, status TEXT NOT NULL DEFAULT 'pending', note TEXT, created_at TEXT NOT NULL, paid_at TEXT)`,
+        ];
+        for (const sql of statements) await client.execute(sql);
+        const columns: [string, string, string][] = [
+          ["users", "paid_until", "TEXT"],
+          ["leads", "user_id", "INTEGER"],
+          ["leads", "monthly_bill", "REAL"],
+          ["leads", "address", "TEXT"],
+          ["competitors", "user_id", "INTEGER"],
+        ];
+        for (const [table, column, type] of columns) {
+          try {
+            await client.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+          } catch (err: any) {
+            // Already added, or the base table does not exist yet in a fresh database.
+            if (!/duplicate column|no such table/i.test(String(err?.message))) throw err;
+          }
+        }
+      })().catch((err: unknown) => { this.schemaReady = null; throw err; });
+    }
+    return this.schemaReady;
+  }
+
+  // ── Generic document helpers ──
+  private table(col: Collection): any {
+    const map: Record<Collection, any> = {
+      admins, users, projects, leads, competitors,
+      contractor_profiles: contractorProfiles,
+      sales_proposals: salesProposals,
+      net_metering_trackers: netMeteringTrackers,
+      message_log: messageLog,
+      billing_events: billingEvents,
+    };
+    return map[col];
+  }
+  async docList<T = any>(col: Collection): Promise<T[]> {
+    await this.init();
+    return await db.select().from(this.table(col)).all();
+  }
+  async docGet<T = any>(col: Collection, id: number): Promise<T | null> {
+    await this.init();
+    const t = this.table(col);
+    const res = await db.select().from(t).where(eq(t.id, id)).all();
+    return res[0] ?? null;
+  }
+  async docInsert<T = any>(col: Collection, data: Record<string, any>): Promise<T> {
+    await this.init();
+    const { id: _ignored, ...rest } = data;
+    const res = await db.insert(this.table(col)).values(rest).returning().all();
+    return res[0];
+  }
+  async docUpdate<T = any>(col: Collection, id: number, data: Record<string, any>): Promise<T | null> {
+    await this.init();
+    const t = this.table(col);
+    const { id: _ignored, ...rest } = data;
+    const res = await db.update(t).set(rest).where(eq(t.id, id)).returning().all();
+    return res[0] ?? null;
+  }
+  async docDelete(col: Collection, id: number): Promise<void> {
+    await this.init();
+    const t = this.table(col);
+    await db.delete(t).where(eq(t.id, id)).run();
   }
 
   // Projects
@@ -221,7 +297,8 @@ export class LibSQLStorage implements IStorage {
         source_url TEXT,
         threat_level TEXT NOT NULL DEFAULT 'medium',
         last_checked TEXT,
-        created_at TEXT NOT NULL DEFAULT ''
+        created_at TEXT NOT NULL DEFAULT '',
+        user_id INTEGER
       )`).then(() => undefined).catch((err: unknown) => { this.competitorsReady = null; throw err; });
     }
     return this.competitorsReady as Promise<void>;
@@ -514,12 +591,6 @@ export class LibSQLStorage implements IStorage {
   async getUserById(id: number): Promise<User | undefined> {
     const res = await db.select().from(users).where(eq(users.id, id)).all();
     return res[0];
-  }
-  async getUserByEmailAndPassword(email: string, password: string): Promise<User | undefined> {
-    // In production, we'd use bcrypt, but keeping it simple as per earlier logic
-    const res = await db.select().from(users).where(eq(users.email, email)).all();
-    const user = res.find((u: any) => u.password === password);
-    return user;
   }
   async updateUserSubscription(id: number, data: Partial<User>): Promise<User> {
     const res = await db.update(users).set(data).where(eq(users.id, id)).returning().all();

@@ -1,4 +1,4 @@
-import { IStorage } from "./storage-interface.js";
+import { IStorage, type Collection } from "./storage-interface.js";
 import type { 
   Project, InsertProject, 
   Milestone, InsertMilestone, 
@@ -67,6 +67,7 @@ export class MemStorage implements IStorage {
   private serviceJobs = new Map<number, ServiceJob>();
   private clientMessages = new Map<number, ClientMessage>();
   private users = new Map<number, User>();
+  private genericDocs: Record<string, Map<number, any>> = {};
 
   private currentIds: Record<string, number> = {
     projects: 1, milestones: 1, updates: 1, faqs: 1, testimonials: 1, pricing: 1,
@@ -79,6 +80,44 @@ export class MemStorage implements IStorage {
   constructor() {
     this.seed();
   }
+
+  // ── Generic document helpers ──
+  private docMap(col: Collection): Map<number, any> {
+    switch (col) {
+      case "admins": return this.admins;
+      case "users": return this.users;
+      case "projects": return this.projects;
+      case "leads": return this.leads;
+      case "competitors": return this.competitors;
+      default: return (this.genericDocs[col] ??= new Map());
+    }
+  }
+  private nextId(col: Collection): number {
+    const map = this.docMap(col);
+    const key = col === "admins" ? "admins" : col;
+    const fromCounter = this.currentIds[key] ?? 1;
+    const fromData = map.size ? Math.max(...Array.from(map.keys())) + 1 : 1;
+    const id = Math.max(fromCounter, fromData);
+    this.currentIds[key] = id + 1;
+    return id;
+  }
+  async docList<T = any>(col: Collection): Promise<T[]> { return Array.from(this.docMap(col).values()); }
+  async docGet<T = any>(col: Collection, id: number): Promise<T | null> { return this.docMap(col).get(id) ?? null; }
+  async docInsert<T = any>(col: Collection, data: Record<string, any>): Promise<T> {
+    const id = this.nextId(col);
+    const doc = { ...data, id };
+    this.docMap(col).set(id, doc);
+    return doc as T;
+  }
+  async docUpdate<T = any>(col: Collection, id: number, data: Record<string, any>): Promise<T | null> {
+    const map = this.docMap(col);
+    const existing = map.get(id);
+    if (!existing) return null;
+    const updated = { ...existing, ...data, id };
+    map.set(id, updated);
+    return updated as T;
+  }
+  async docDelete(col: Collection, id: number): Promise<void> { this.docMap(col).delete(id); }
 
   private seed() {
     console.log("Seeding MemStorage for Vercel Demo...");
@@ -118,7 +157,8 @@ export class MemStorage implements IStorage {
       lastWeatherRisk: "low",
       weatherAlert: null,
       netMeteringStatus: "pending",
-      netMeteringNotes: null
+      netMeteringNotes: null,
+      userId: null
     });
 
     // Milestones
@@ -360,7 +400,7 @@ export class MemStorage implements IStorage {
   // ── Users (Self-Service) ──
   async createUser(data: InsertUser): Promise<User> {
     const id = this.currentIds.users++;
-    const user: User = { ...data, id, subscriptionStatus: data.subscriptionStatus || "trial", subscriptionPlan: data.subscriptionPlan || null, billingCycle: data.billingCycle || null, subscriptionStartDate: data.subscriptionStartDate || null, company: data.company || null, phone: data.phone || null, googleId: data.googleId || null };
+    const user: User = { ...data, id, subscriptionStatus: data.subscriptionStatus || "trial", subscriptionPlan: data.subscriptionPlan || null, billingCycle: data.billingCycle || null, subscriptionStartDate: data.subscriptionStartDate || null, company: data.company || null, phone: data.phone || null, googleId: data.googleId || null, paidUntil: data.paidUntil ?? null };
     this.users.set(id, user);
     return user;
   }
@@ -369,9 +409,6 @@ export class MemStorage implements IStorage {
   }
   async getUserById(id: number): Promise<User | undefined> {
     return this.users.get(id);
-  }
-  async getUserByEmailAndPassword(email: string, password: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(u => u.email === email && u.password === password);
   }
   async updateUserSubscription(id: number, data: Partial<User>): Promise<User> {
     const user = this.users.get(id);

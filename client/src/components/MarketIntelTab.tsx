@@ -9,7 +9,6 @@ import { MARKET_PACKS, type MarketPack } from "@/lib/marketPacks";
 
 type ApiFetch = (url: string, opts?: any) => Promise<any>;
 
-const API = "/api/admin/competitors";
 const SETTINGS_KEY = "solariq_market_intel_settings";
 
 // Payback model assumptions, shown to the user next to the result.
@@ -130,7 +129,8 @@ function PriceBars({ title, rows, mine }: { title: string; rows: { name: string;
   );
 }
 
-export default function MarketIntelTab({ apiFetch }: { apiFetch: ApiFetch }) {
+export default function MarketIntelTab({ apiFetch, base = "/api/admin" }: { apiFetch: ApiFetch; base?: string }) {
+  const API = `${base}/competitors`;
   const { toast } = useToast();
   const { data: competitors = [], refetch, isLoading, isError } = useQuery<Competitor[]>({ queryKey: [API], queryFn: () => apiFetch(API) });
   const [settings, setSettings] = useState<Settings>(loadSettings);
